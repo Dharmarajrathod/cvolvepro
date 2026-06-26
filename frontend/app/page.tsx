@@ -2,7 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Bookmark, BriefcaseBusiness, Check, ChevronDown, Clock3, Compass, ExternalLink, LocateFixed, MapPin, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight, Bookmark, BriefcaseBusiness, Check, ChevronDown, Clock3, Compass, ExternalLink, FileCheck2, LocateFixed, MapPin, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { readAuthUser } from "./shared";
 
 type Job = {
   id: string; title: string; company: string; location: string; work_mode: string;
@@ -37,7 +39,8 @@ function postedWithin(value: string | null, days: number) {
   if (text.includes("yesterday")) return days >= 1;
   const relative = text.match(/(\d+)\s*days?/);
   if (relative) return Number(relative[1]) <= days;
-  const timestamp = Date.parse(value);
+  const dateMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+  const timestamp = Date.parse(dateMatch ? dateMatch[0] : value);
   if (Number.isNaN(timestamp)) return false;
   const age = Math.max(0, Date.now() - timestamp);
   return age <= days * 86_400_000;
@@ -65,6 +68,7 @@ function matchesExperience(value: string | null, bucket: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [remote, setRemote] = useState(false);
@@ -134,6 +138,16 @@ export default function Home() {
   useEffect(() => { setCurrentPage(1); }, [workMode, jobType, experienceFilter, companyFilter, titleFilter, skillFilter, minMatch, salaryOnly, datePosted]);
   function resetFilters() { setWorkMode("all"); setJobType("all"); setExperienceFilter("all"); setCompanyFilter(""); setTitleFilter(""); setSkillFilter(""); setMinMatch(0); setSalaryOnly(false); setDatePosted(0); }
   function changePage(page: number) { setCurrentPage(page); document.getElementById("results-top")?.scrollIntoView({behavior:"smooth", block:"start"}); }
+  function checkAts(job: Job) {
+    sessionStorage.setItem("cvolvepro:selectedJob", JSON.stringify(job));
+    sessionStorage.removeItem("cvolvepro:atsResult");
+    if (readAuthUser()) {
+      router.push("/ats");
+      return;
+    }
+    sessionStorage.setItem("cvolvepro:authRedirect", "/ats");
+    router.push("/auth");
+  }
 
   return <main>
     <nav className="nav shell">
@@ -161,7 +175,7 @@ export default function Home() {
           <label className="skills"><Sparkles size={14}/>Improve matching <input value={skills} onChange={e=>setSkills(e.target.value)} placeholder="Add your skills, separated by commas"/></label>
         </div>
       </form>
-      <div className="trust"><span>Searching across</span><b>RemoteOK</b><b>Remotive</b><b>Jobicy</b><b>We Work Remotely</b><b>The Muse</b><span>and more</span></div>
+      <div className="trust"><span>Searching across</span><b>LinkedIn</b><b>Dice</b><b>Freelancer</b><b>RemoteOK</b><b>Y Combinator</b><span>and more</span></div>
     </section>
 
     <AnimatePresence mode="wait">
@@ -194,7 +208,7 @@ export default function Home() {
               <div className="meta"><span><MapPin size={14}/>{job.location}</span><span><BriefcaseBusiness size={14}/>{job.employment_type}</span>{job.posted_at&&<span><Clock3 size={14}/>{job.posted_at}</span>}{job.salary&&<span className="salary">{job.salary}</span>}</div>
               <p className="summary">{job.summary}</p><div className="tags">{job.skills.slice(0,5).map(s=><span key={s}>{s}</span>)}</div>
             </div>
-            <div className="fit"><div className="score"><strong>{job.match_score}</strong><small>% MATCH</small></div><p>{job.match_reason}</p><a href={job.apply_url} target="_blank" rel="noopener noreferrer">View role <ExternalLink size={15}/></a>{!job.source.toLowerCase().includes("indeed") && <span className="source">via {job.source}</span>}</div>
+            <div className="fit"><div className="score"><strong>{job.match_score}</strong><small>% MATCH</small></div><p>{job.match_reason}</p><a href={job.apply_url} target="_blank" rel="noopener noreferrer">View role <ExternalLink size={15}/></a><button className="ats-link" onClick={()=>checkAts(job)}><FileCheck2 size={15}/>Check ATS score</button>{!job.source.toLowerCase().includes("indeed") && <span className="source">via {job.source}</span>}</div>
           </motion.article>)}
           {filteredJobs.length===0&&<div className="empty"><LocateFixed/><h3>No roles match these filters</h3><p>Reset the filters or broaden your selection.</p><button className="reset-empty" onClick={resetFilters}>Reset filters</button></div>}
         </div>

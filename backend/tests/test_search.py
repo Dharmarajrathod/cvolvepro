@@ -3,7 +3,7 @@ from datetime import date, timedelta
 import json
 from app.config import Settings
 from app.schemas import JobSearchRequest
-from app.search import _search_region, canonical_url, merge_payloads, normalize
+from app.search import BLOCKED_SOURCES, SEARCH_SOURCES, NvidiaAPIError, _search_region, canonical_url, is_actual_job_url, merge_payloads, normalize, search_jobs
 
 def test_canonical_url_removes_tracking():
     assert canonical_url("https://Jobs.Example.com/role/1/?utm_source=x#apply") == "https://jobs.example.com/role/1"
@@ -56,6 +56,10 @@ async def test_nvidia_search_uses_chat_completions_and_guided_json():
             assert path == "chat/completions"
             assert json["model"] == "nvidia/nemotron-3-super-120b-a12b"
             assert json["messages"][0]["content"].startswith("You are CvolvePro")
+            assert "Jobicy" not in json["messages"][0]["content"]
+            assert "Himalayas" not in json["messages"][0]["content"]
+            assert "LinkedIn" in json["messages"][1]["content"]
+            assert "blocked_sources" in json["messages"][1]["content"]
             assert json["response_format"] == {"type": "json_object"}
             assert json["chat_template_kwargs"] == {"thinking": False}
             assert json["nvext"]["guided_json"]["type"] == "object"
@@ -68,3 +72,84 @@ async def test_nvidia_search_uses_chat_completions_and_guided_json():
         "Pune, India",
     )
     assert result == payload
+
+
+def test_allowed_sources_exclude_blocked_platforms():
+    for source in BLOCKED_SOURCES:
+        assert source not in SEARCH_SOURCES
+    assert "LinkedIn" in SEARCH_SOURCES
+    assert "Remote OK" in SEARCH_SOURCES
+    assert "Dice" in SEARCH_SOURCES
+
+def test_actual_job_url_filter_rejects_platform_search_pages():
+    assert is_actual_job_url("LinkedIn", "https://www.linkedin.com/jobs/view/123")
+    assert not is_actual_job_url("LinkedIn", "https://www.linkedin.com/jobs/search/?keywords=python")
+    assert is_actual_job_url("Dice", "https://www.dice.com/job-detail/abc")
+    assert not is_actual_job_url("Indeed", "https://www.indeed.com/jobs?q=python")
+
+
+@pytest.mark.asyncio
+async def test_search_jobs_prefers_live_verified_jobs(monkeypatch):
+    request = JobSearchRequest(query="Python developer")
+    expected = normalize({"jobs":[{
+        "title":"Python Developer",
+        "company":"Acme",
+        "location":"Remote",
+        "work_mode":"Remote",
+        "employment_type":"Full-time",
+        "salary":None,
+        "experience":None,
+        "posted_at":date.today().isoformat(),
+        "skills":["Python"],
+        "summary":"Build backend systems.",
+        "match_score":90,
+        "match_reason":"Strong fit.",
+        "source":"NVIDIA NIM",
+        "apply_url":"https://acme.test/jobs/python"
+    }], "searched_sources":["NVIDIA NIM"], "query_expansion":["Python developer"]}, 10)
+
+    async def fake_nvidia(*_):
+        raise AssertionError("NVIDIA should not run when verified live jobs are available")
+
+    async def fake_live(*_):
+        return expected
+
+    monkeypatch.setattr("app.search.search_jobs_with_nvidia", fake_nvidia)
+    monkeypatch.setattr("app.search.search_live_job_boards", fake_live)
+    monkeypatch.setattr("app.search.discover_allowed_platform_links", lambda *_: (_ for _ in ()).throw(ValueError("skip discovery")))
+    result = await search_jobs(request, Settings(nvidia_api_key="test"))
+    assert result.total == 1
+    assert result.jobs[0].source == "NVIDIA NIM"
+
+
+@pytest.mark.asyncio
+async def test_search_jobs_keeps_live_results_when_nvidia_key_is_invalid(monkeypatch):
+    async def fake_nvidia(*_):
+        raise NvidiaAPIError("bad key", 401)
+
+    live = normalize({"jobs":[{
+        "title":"Python Developer",
+        "company":"Acme",
+        "location":"Remote",
+        "work_mode":"Remote",
+        "employment_type":"Full-time",
+        "salary":None,
+        "experience":None,
+        "posted_at":date.today().isoformat(),
+        "skills":["Python"],
+        "summary":"Build backend systems.",
+        "match_score":90,
+        "match_reason":"Strong fit.",
+        "source":"Dice",
+        "apply_url":"https://www.dice.com/job-detail/python"
+    }], "searched_sources":["Dice"], "query_expansion":["Python developer"]}, 10)
+
+    async def fake_live(*_):
+        return live
+
+    monkeypatch.setattr("app.search.search_jobs_with_nvidia", fake_nvidia)
+    monkeypatch.setattr("app.search.search_live_job_boards", fake_live)
+    monkeypatch.setattr("app.search.discover_allowed_platform_links", lambda *_: (_ for _ in ()).throw(NvidiaAPIError("bad key", 401)))
+    result = await search_jobs(JobSearchRequest(query="Python developer"), Settings(nvidia_api_key="bad"))
+    assert result.total == 1
+    assert result.jobs[0].source == "Dice"

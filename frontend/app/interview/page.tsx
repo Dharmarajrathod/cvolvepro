@@ -1,0 +1,275 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, Camera, CheckCircle2, ClipboardCheck, Loader2, Mic, MicOff, MessageSquareText, RotateCcw, Sparkles, Square, Trophy, Volume2 } from "lucide-react";
+import { API, AtsResult, InterviewFeedback } from "../shared";
+
+type Answer = { question: string; answer: string };
+type SpeechRecognitionResultEvent = {
+  results: ArrayLike<{ 0?: { transcript?: string } }>;
+};
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    SpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+export default function InterviewPage() {
+  const [ats, setAts] = useState<AtsResult | null>(null);
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [current, setCurrent] = useState(0);
+  const [draft, setDraft] = useState("");
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [mediaReady, setMediaReady] = useState(false);
+  const [mediaError, setMediaError] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<InterviewFeedback | null>(null);
+  const [error, setError] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const progress = useMemo(() => questions.length ? Math.round(((answers.length) / questions.length) * 100) : 0, [answers.length, questions.length]);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem("cvolvepro:atsResult");
+    if (!raw) { setLoading(false); return; }
+    try {
+      const parsed = JSON.parse(raw) as AtsResult;
+      setAts(parsed);
+      startInterview(parsed);
+    } catch {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && questions[current]) speakQuestion();
+  }, [loading, current, questions]);
+
+  useEffect(() => {
+    return () => {
+      stopRecognition();
+      window.speechSynthesis?.cancel();
+      streamRef.current?.getTracks().forEach(track => track.stop());
+    };
+  }, []);
+
+  async function startInterview(parsed: AtsResult) {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`${API}/api/interview/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job: parsed.job,
+          resume_text: parsed.resume_text,
+          ats_score: parsed.score,
+          ats_summary: parsed.verdict
+        })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Interview questions could not be generated.");
+      setQuestions(body.questions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Interview questions could not be generated.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitAnswer(e: FormEvent) {
+    e.preventDefault();
+    if (!draft.trim() || !questions[current]) return;
+    const nextAnswers = [...answers, { question: questions[current], answer: draft.trim() }];
+    setAnswers(nextAnswers);
+    setDraft("");
+    if (nextAnswers.length < questions.length) {
+      setCurrent(value => value + 1);
+      return;
+    }
+    await finishInterview(nextAnswers);
+  }
+
+  async function enableCameraAndMic() {
+    setMediaError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = stream;
+      setMediaReady(true);
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch {
+      setMediaError("Camera and microphone permission is required for recorded interview answers.");
+    }
+  }
+
+  function speakQuestion() {
+    const question = questions[current];
+    if (!question || typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(question);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function startRecognition() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      setSpeechSupported(false);
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onresult = event => {
+      let transcript = "";
+      for (let index = 0; index < event.results.length; index += 1) {
+        transcript += event.results[index][0]?.transcript || "";
+      }
+      setDraft(transcript.trim());
+    };
+    recognition.onerror = () => setSpeechSupported(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function stopRecognition() {
+    try { recognitionRef.current?.stop(); } catch {}
+    recognitionRef.current = null;
+  }
+
+  async function startRecording() {
+    if (!streamRef.current) await enableCameraAndMic();
+    const stream = streamRef.current;
+    if (!stream) return;
+    chunksRef.current = [];
+    const recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = event => {
+      if (event.data.size > 0) chunksRef.current.push(event.data);
+    };
+    recorderRef.current = recorder;
+    recorder.start();
+    setRecording(true);
+    startRecognition();
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
+    stopRecognition();
+    setRecording(false);
+  }
+
+  function resetForNextQuestion() {
+    setDraft("");
+  }
+
+  async function submitRecordedAnswer(e: FormEvent) {
+    e.preventDefault();
+    if (recording) stopRecording();
+    if (!draft.trim() || !questions[current]) return;
+    const nextAnswers = [...answers, { question: questions[current], answer: draft.trim() }];
+    setAnswers(nextAnswers);
+    resetForNextQuestion();
+    if (nextAnswers.length < questions.length) {
+      setCurrent(value => value + 1);
+      return;
+    }
+    await finishInterview(nextAnswers);
+  }
+
+  async function finishInterview(finalAnswers: Answer[]) {
+    if (!ats) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch(`${API}/api/interview/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job: ats.job, resume_text: ats.resume_text, answers: finalAnswers })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Interview feedback could not be generated.");
+      setFeedback(body);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Interview feedback could not be generated.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!ats) {
+    return <main className="flow-page shell"><Link className="back-link" href="/ats"><ArrowLeft size={16}/>Back to ATS</Link><section className="flow-empty"><ClipboardCheck/><h1>ATS approval required</h1><p>Generate an ATS score above 70% before opening the interview room.</p></section></main>;
+  }
+
+  return <main className="flow-page shell">
+    <Link className="back-link" href="/ats"><ArrowLeft size={16}/>Back to ATS score</Link>
+    <section className="interview-head">
+      <div><span className="kicker">AI INTERVIEW</span><h1>{ats.job.title}</h1><p>{ats.job.company} · ATS {ats.score}%</p></div>
+      <div className="progress-ring"><strong>{feedback ? 100 : progress}</strong><span>%</span></div>
+    </section>
+
+    {loading && <section className="interview-card center"><Loader2 className="spin" size={28}/><h2>Generating your 10-question interview</h2><p>NVIDIA is tailoring questions to the job description, resume projects, and experience signals.</p></section>}
+    {error && <p className="flow-error wide">{error}</p>}
+
+    {!loading && !feedback && questions.length > 0 && <section className="interview-card voice-interview">
+      <div className="question-top"><span>Question {current + 1} of {questions.length}</span><MessageSquareText size={20}/></div>
+      <h2>{questions[current]}</h2>
+      <div className="voice-actions">
+        <button type="button" className="tool-button" onClick={speakQuestion}><Volume2 size={17}/><span>Replay</span></button>
+        <button type="button" className={`tool-button ${mediaReady ? "ready" : ""}`} onClick={enableCameraAndMic}><Camera size={17}/><span>{mediaReady ? "Camera ready" : "Enable camera"}</span></button>
+      </div>
+      <form onSubmit={submitRecordedAnswer}>
+        <div className="recording-grid">
+          <div className="camera-panel">
+            <video ref={videoRef} autoPlay muted playsInline className={mediaReady ? "" : "hidden-video"}/>
+            {!mediaReady && <div className="camera-placeholder"><Camera size={32}/><span>Camera preview</span></div>}
+            {recording && <span className="recording-badge">Recording</span>}
+          </div>
+          <div className="answer-panel">
+            <div className="record-controls">
+              {!recording ? <button type="button" className="record-button" onClick={startRecording}><Mic size={18}/><span>Start answer</span></button> : <button type="button" className="record-button stop" onClick={stopRecording}><Square size={18}/><span>Stop answer</span></button>}
+              <button type="button" className="ghost-button" onClick={() => setDraft("")}><RotateCcw size={15}/><span>Clear transcript</span></button>
+              {!speechSupported && <span><MicOff size={14}/>Speech transcript unavailable</span>}
+            </div>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Your spoken answer transcript appears here. Edit it if speech recognition misses anything."/>
+          </div>
+        </div>
+        {mediaError && <p className="flow-error">{mediaError}</p>}
+        <button className="primary-action" disabled={!draft.trim() || submitting}>{submitting ? <Loader2 className="spin" size={18}/> : current + 1 === questions.length ? <Sparkles size={18}/> : <ArrowRight size={18}/>} {current + 1 === questions.length ? "Finish and get feedback" : "Save answer and continue"}</button>
+      </form>
+      <div className="answer-strip">{answers.map((answer, index)=><span key={answer.question} className="done"><CheckCircle2 size={13}/>Q{index + 1}</span>)}</div>
+    </section>}
+
+    {feedback && <section className="feedback-panel">
+      <div className="feedback-score"><Trophy size={28}/><strong>{feedback.overall_score}%</strong><span>{feedback.hiring_signal}</span></div>
+      <h2>Interview feedback</h2>
+      <p>{feedback.summary}</p>
+      <div className="ats-columns">
+        <section><h3>What worked</h3>{feedback.strengths.map(item=><p key={item}><CheckCircle2 size={14}/>{item}</p>)}</section>
+        <section><h3>Improve next</h3>{feedback.improvements.map(item=><p key={item}>{item}</p>)}</section>
+      </div>
+      <section className="recommendations"><h3>Better answer guidance</h3>{feedback.better_answer_guidance.map(item=><p key={item}>{item}</p>)}</section>
+      <Link className="secondary-action" href="/">Back to job search</Link>
+    </section>}
+  </main>;
+}
