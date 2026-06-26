@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
-const isGithubPages = process.env.GITHUB_ACTIONS === "true";
+const isGithubPages = process.env.GITHUB_PAGES === "true";
+const isStaticExport = isGithubPages || process.env.RENDER === "true";
 
 const nextConfig: NextConfig = {
-  output: isGithubPages ? "export" : "standalone",
+  output: isStaticExport ? "export" : "standalone",
   basePath: isGithubPages ? "/cvolvepro" : "",
   images: {
     unoptimized: true,
