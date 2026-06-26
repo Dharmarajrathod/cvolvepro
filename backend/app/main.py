@@ -16,6 +16,15 @@ from .search import NvidiaAPIError, search_jobs
 
 settings = get_settings()
 requests_by_ip: dict[str, deque[float]] = defaultdict(deque)
+RATE_LIMIT_REQUESTS = 30
+
+def rate_limit_response(request: Request) -> JSONResponse:
+    response = JSONResponse({"detail":"Too many searches. Please wait a minute."}, status_code=429)
+    origin = request.headers.get("origin")
+    if origin in settings.origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+    return response
 
 def parse_selected_job(payload: Optional[str], fallback: Optional[dict] = None) -> JobResult:
     fallback = fallback or {}
@@ -71,10 +80,10 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credent
 
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/") and request.method != "OPTIONS":
         ip = request.client.host if request.client else "unknown"; now = time.monotonic(); bucket = requests_by_ip[ip]
         while bucket and now - bucket[0] > 60: bucket.popleft()
-        if len(bucket) >= 10: return JSONResponse({"detail":"Too many searches. Please wait a minute."}, status_code=429)
+        if len(bucket) >= RATE_LIMIT_REQUESTS: return rate_limit_response(request)
         bucket.append(now)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
