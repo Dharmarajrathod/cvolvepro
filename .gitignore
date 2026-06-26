@@ -1,5 +1,6 @@
 node_modules
 .next
+out
 .env
 .env.local
 .venv
@@ -7,4 +8,3 @@ __pycache__
 .pytest_cache
 *.pyc
 career.db
-
