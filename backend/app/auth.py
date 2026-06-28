@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Optional
 
+import httpx
 from fastapi import HTTPException
 from sqlalchemy import Boolean, DateTime, Integer, String, delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -161,6 +162,26 @@ def build_verification_email(settings: Settings, email: str, code: str) -> Email
 
 
 def send_email(settings: Settings, message: EmailMessage) -> None:
+    if settings.resend_api_key:
+        response = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.smtp_from_email,
+                "to": [message["To"]],
+                "subject": message["Subject"],
+                "text": message.get_content(),
+            },
+            timeout=15,
+        )
+        if response.status_code >= 400:
+            logger.error("Resend email failed: %s %s", response.status_code, response.text)
+            raise HTTPException(502, "Could not send the verification email. Check Resend settings and try again.")
+        return
+
     if not settings.smtp_host or not settings.smtp_username or not settings.smtp_password:
         raise HTTPException(503, "Email delivery is not configured.")
     smtp_class = smtplib.SMTP_SSL if settings.smtp_use_ssl or settings.smtp_port == 465 else smtplib.SMTP

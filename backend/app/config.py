@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = "no-reply@cvolvepro.com"
     smtp_use_ssl: bool = True
+    resend_api_key: str = ""
     verification_code_ttl_minutes: int = 10
     frontend_url: str = "http://localhost:3000"
     stripe_secret_key: str = ""
