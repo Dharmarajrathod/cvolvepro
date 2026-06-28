@@ -25,6 +25,7 @@ export type AtsResult = {
   recommendations: string[];
   resume_text: string;
   job: Job;
+  credits_remaining?: number;
 };
 
 export type InterviewFeedback = {
@@ -38,6 +39,7 @@ export type InterviewFeedback = {
 
 export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export const AUTH_KEY = "cvolvepro:user";
+export const ATS_HISTORY_KEY = "cvolvepro:atsHistory";
 
 export function readStoredJob() {
   if (typeof window === "undefined") return null;
@@ -53,6 +55,11 @@ export function readStoredJob() {
 export type AuthUser = {
   name: string;
   email: string;
+  mobile_number?: string;
+  country?: string;
+  account_type?: "personal" | "business";
+  credits?: number;
+  plan_id?: string;
 };
 
 export function readAuthUser() {
@@ -68,4 +75,52 @@ export function readAuthUser() {
 
 export function saveAuthUser(user: AuthUser) {
   localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+}
+
+export function clearAuthUser() {
+  localStorage.removeItem(AUTH_KEY);
+}
+
+export function updateAuthUserCredits(credits: number) {
+  const user = readAuthUser();
+  if (!user) return null;
+  const updated = { ...user, credits };
+  saveAuthUser(updated);
+  return updated;
+}
+
+export type AtsHistoryItem = {
+  id: string;
+  checked_at: string;
+  score: number;
+  verdict: string;
+  job: Job;
+};
+
+function historyKey(email: string) {
+  return `${ATS_HISTORY_KEY}:${email.toLowerCase()}`;
+}
+
+export function readAtsHistory(user: AuthUser | null) {
+  if (typeof window === "undefined" || !user) return [];
+  const raw = localStorage.getItem(historyKey(user.email));
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as AtsHistoryItem[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveAtsHistory(user: AuthUser | null, result: AtsResult) {
+  if (typeof window === "undefined" || !user) return;
+  const item: AtsHistoryItem = {
+    id: `${result.job.id}:${Date.now()}`,
+    checked_at: new Date().toISOString(),
+    score: result.score,
+    verdict: result.verdict,
+    job: result.job,
+  };
+  const history = [item, ...readAtsHistory(user)].slice(0, 50);
+  localStorage.setItem(historyKey(user.email), JSON.stringify(history));
 }

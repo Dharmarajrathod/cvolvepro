@@ -14,6 +14,16 @@ class Settings(BaseSettings):
     search_concurrency: int = 4
     search_scope_limit: int = 8
     max_job_age_days: int = 7
+    smtp_host: str = "smtp.hostinger.com"
+    smtp_port: int = 465
+    smtp_username: str = "no-reply@cvolvepro.com"
+    smtp_password: str = ""
+    smtp_from_email: str = "no-reply@cvolvepro.com"
+    smtp_use_ssl: bool = True
+    verification_code_ttl_minutes: int = 10
+    frontend_url: str = "http://localhost:3000"
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
     model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     @property

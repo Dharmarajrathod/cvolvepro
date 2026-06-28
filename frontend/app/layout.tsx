@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ClickFeedback from "./ClickFeedback";
 import "./globals.css";
 import "./filters.css";
 
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="en"><body><ClickFeedback/>{children}</body></html>;
 }

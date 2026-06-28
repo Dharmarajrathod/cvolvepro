@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, CheckCircle2, ExternalLink, FileUp, Loader2, MapPin, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
-import { API, AtsResult, Job, readAuthUser, readStoredJob } from "../shared";
+import { API, AtsResult, Job, readAuthUser, readStoredJob, saveAtsHistory, updateAuthUserCredits } from "../shared";
 
 export default function AtsPage() {
   const router = useRouter();
@@ -61,11 +61,15 @@ export default function AtsPage() {
         form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value ?? ""));
       });
       form.append("resume", resume);
+      const currentUser = readAuthUser();
+      form.append("user_email", currentUser?.email || "");
       const response = await fetch(`${API}/api/ats-score`, { method: "POST", body: form });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "ATS score could not be generated.");
+      if (typeof body.credits_remaining === "number") updateAuthUserCredits(body.credits_remaining);
       setResult(body);
       sessionStorage.setItem("cvolvepro:atsResult", JSON.stringify(body));
+      saveAtsHistory(readAuthUser(), body);
     } catch (err) {
       setError(err instanceof Error ? err.message : "ATS score could not be generated.");
     } finally {
@@ -80,11 +84,11 @@ export default function AtsPage() {
   }
 
   if (!job) {
-    return <main className="flow-page shell"><Link className="back-link" href="/"><ArrowLeft size={16}/>Back to jobs</Link><section className="flow-empty"><TriangleAlert/><h1>Select a role first</h1><p>Search jobs, choose a role, then check your ATS score from the role card.</p></section></main>;
+    return <main className="flow-page shell"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><section className="flow-empty"><TriangleAlert/><h1>Select a role first</h1><p>Search jobs, choose a role, then check your ATS score from the role card.</p></section></main>;
   }
 
   return <main className="flow-page shell">
-    <Link className="back-link" href="/"><ArrowLeft size={16}/>Back to jobs</Link>
+    <Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link>
     <section className="flow-hero">
       <div>
         <span className="kicker">ATS READINESS</span>

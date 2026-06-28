@@ -3,6 +3,8 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 from typing import Literal, Optional
 
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
 class JobSearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=120)
     location: Optional[str] = Field(default=None, max_length=100)
@@ -10,6 +12,7 @@ class JobSearchRequest(BaseModel):
     candidate_skills: list[str] = Field(default_factory=list, max_length=40)
     employment_type: Optional[Literal["full-time", "part-time", "contract", "internship", "freelance"]] = None
     experience_level: Optional[Literal["entry", "junior", "mid", "senior", "lead"]] = None
+    user_email: Optional[str] = Field(default=None, pattern=EMAIL_PATTERN, max_length=254)
 
     @field_validator("query", "location")
     @classmethod
@@ -38,6 +41,91 @@ class JobSearchResponse(BaseModel):
     total: int
     searched_sources: list[str]
     query_expansion: list[str]
+    credits_remaining: Optional[int] = None
+
+class SendVerificationCodeRequest(BaseModel):
+    email: str = Field(pattern=EMAIL_PATTERN, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def clean_email(cls, value: str):
+        return value.strip().lower()
+
+class RegisterRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: str = Field(pattern=EMAIL_PATTERN, max_length=254)
+    password: str = Field(min_length=8, max_length=120)
+    mobile_number: str = Field(min_length=7, max_length=32)
+    country: str = Field(min_length=2, max_length=80)
+    account_type: Literal["personal", "business"] = "personal"
+    verification_code: str = Field(min_length=6, max_length=6)
+
+    @field_validator("name", "mobile_number", "country")
+    @classmethod
+    def clean_text(cls, value: str):
+        return " ".join(value.split())
+
+    @field_validator("email")
+    @classmethod
+    def clean_register_email(cls, value: str):
+        return value.strip().lower()
+
+class LoginRequest(BaseModel):
+    email: str = Field(pattern=EMAIL_PATTERN, max_length=254)
+    password: str = Field(min_length=1, max_length=120)
+
+    @field_validator("email")
+    @classmethod
+    def clean_login_email(cls, value: str):
+        return value.strip().lower()
+
+class AuthUserResponse(BaseModel):
+    name: str
+    email: str
+    mobile_number: str
+    country: str
+    account_type: Literal["personal", "business"] = "personal"
+    credits: int = 0
+    plan_id: str = "none"
+
+class CreateCheckoutSessionRequest(BaseModel):
+    plan_id: Literal["classic", "premium", "premium_plus", "business_starter", "business_growth", "business_enterprise"]
+    email: Optional[str] = Field(default=None, pattern=EMAIL_PATTERN, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def clean_checkout_email(cls, value: Optional[str]):
+        return value.strip().lower() if value else value
+
+class CheckoutSessionResponse(BaseModel):
+    url: str
+
+class SelectFreePlanRequest(BaseModel):
+    email: str = Field(pattern=EMAIL_PATTERN, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def clean_free_plan_email(cls, value: str):
+        return value.strip().lower()
+
+class ConfirmCheckoutSessionRequest(BaseModel):
+    session_id: str = Field(min_length=3, max_length=300)
+    email: Optional[str] = Field(default=None, pattern=EMAIL_PATTERN, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def clean_confirm_email(cls, value: Optional[str]):
+        return value.strip().lower() if value else value
+
+class ResetPasswordRequest(BaseModel):
+    email: str = Field(pattern=EMAIL_PATTERN, max_length=254)
+    password: str = Field(min_length=8, max_length=120)
+    verification_code: str = Field(min_length=6, max_length=6)
+
+    @field_validator("email")
+    @classmethod
+    def clean_reset_email(cls, value: str):
+        return value.strip().lower()
 
 class AtsScoreResponse(BaseModel):
     score: int = Field(ge=0, le=100)
@@ -54,6 +142,7 @@ class InterviewStartRequest(BaseModel):
     resume_text: str = Field(min_length=80, max_length=30000)
     ats_score: int = Field(ge=0, le=100)
     ats_summary: Optional[str] = Field(default=None, max_length=1200)
+    user_email: Optional[str] = Field(default=None, pattern=EMAIL_PATTERN, max_length=254)
 
 class InterviewStartResponse(BaseModel):
     questions: list[str] = Field(min_length=10, max_length=10)

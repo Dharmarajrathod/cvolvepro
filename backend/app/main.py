@@ -10,8 +10,10 @@ from fastapi.responses import JSONResponse
 import httpx
 from pydantic import ValidationError
 from .ai_career import extract_resume_text, generate_questions, grade_interview, score_resume
+from .auth import authenticate_user, consume_verification_code, create_user, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_verification_code, spend_user_credits, update_user_plan
 from .config import get_settings
-from .schemas import InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse
+from .payments import FREE_PLAN_CREDITS, STRIPE_PLANS, create_checkout_session, retrieve_checkout_session
+from .schemas import AuthUserResponse, CheckoutSessionResponse, ConfirmCheckoutSessionRequest, CreateCheckoutSessionRequest, InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse, LoginRequest, RegisterRequest, ResetPasswordRequest, SelectFreePlanRequest, SendVerificationCodeRequest
 from .search import NvidiaAPIError, search_jobs
 
 settings = get_settings()
@@ -25,6 +27,12 @@ def rate_limit_response(request: Request) -> JSONResponse:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     return response
+
+def client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",", 1)[0].strip()
+    return request.client.host if request.client else "unknown"
 
 def parse_selected_job(payload: Optional[str], fallback: Optional[dict] = None) -> JobResult:
     fallback = fallback or {}
@@ -73,6 +81,7 @@ def parse_selected_job(payload: Optional[str], fallback: Optional[dict] = None) 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await init_auth_database(settings.database_url)
     yield
 
 app = FastAPI(title="CvolvePro API", version="1.0.0", lifespan=lifespan, docs_url="/docs")
@@ -94,9 +103,69 @@ async def security_and_rate_limit(request: Request, call_next):
 @app.get("/health")
 async def health(): return {"status":"ok", "service":"cvolvepro-api"}
 
+@app.post("/api/auth/send-code")
+async def auth_send_code(body: SendVerificationCodeRequest):
+    await send_verification_code(settings, body.email)
+    return {"detail": "Verification code sent."}
+
+@app.post("/api/auth/register", response_model=AuthUserResponse)
+async def auth_register(body: RegisterRequest, request: Request):
+    await consume_verification_code(body.email, body.verification_code)
+    return await create_user(body.name, body.email, body.password, body.mobile_number, body.country, body.account_type, client_ip(request))
+
+@app.post("/api/auth/login", response_model=AuthUserResponse)
+async def auth_login(body: LoginRequest, request: Request):
+    return await authenticate_user(body.email, body.password, client_ip(request))
+
+@app.post("/api/auth/reset-password", response_model=AuthUserResponse)
+async def auth_reset_password(body: ResetPasswordRequest):
+    await consume_verification_code(body.email, body.verification_code)
+    return await reset_user_password(body.email, body.password)
+
+@app.post("/api/payments/create-checkout-session", response_model=CheckoutSessionResponse)
+async def payments_create_checkout_session(body: CreateCheckoutSessionRequest):
+    if not body.email:
+        raise HTTPException(401, "Login is required before payment.")
+    user = await get_public_user(body.email)
+    is_business_plan = body.plan_id.startswith("business_")
+    if user.get("account_type") == "personal" and is_business_plan:
+        raise HTTPException(403, "Personal accounts can only choose personal plans.")
+    if user.get("account_type") == "business" and not is_business_plan:
+        raise HTTPException(403, "Business accounts can only choose business plans.")
+    return await create_checkout_session(settings, body.plan_id, body.email)
+
+@app.post("/api/payments/select-free-plan", response_model=AuthUserResponse)
+async def payments_select_free_plan(body: SelectFreePlanRequest):
+    user = await get_public_user(body.email)
+    if user.get("account_type") != "personal":
+        raise HTTPException(403, "The free plan is only available for personal accounts.")
+    return await update_user_plan(body.email, "free", FREE_PLAN_CREDITS)
+
+@app.post("/api/payments/confirm-session", response_model=AuthUserResponse)
+async def payments_confirm_session(body: ConfirmCheckoutSessionRequest):
+    session = await retrieve_checkout_session(settings, body.session_id)
+    if session.get("payment_status") != "paid":
+        raise HTTPException(402, "Stripe payment has not completed.")
+    plan_id = session.get("metadata", {}).get("plan_id")
+    plan = STRIPE_PLANS.get(plan_id or "")
+    if not plan:
+        raise HTTPException(400, "Stripe session does not include a valid plan.")
+    email = body.email or session.get("customer_details", {}).get("email") or session.get("customer_email")
+    if not email:
+        raise HTTPException(400, "Stripe session does not include a customer email.")
+    return await update_user_plan(email, plan_id, plan.credits)
+
 @app.post("/api/jobs/search", response_model=JobSearchResponse)
 async def job_search(body: JobSearchRequest):
-    try: return await search_jobs(body, settings)
+    try:
+        if not body.user_email:
+            raise HTTPException(401, "Login is required before searching jobs.")
+        await require_user_credits(body.user_email, 5, "job search")
+        result = await search_jobs(body, settings)
+        user = await spend_user_credits(body.user_email, 5, "job search")
+        return {**result.model_dump(), "credits_remaining": user["credits"]}
+    except HTTPException:
+        raise
     except NvidiaAPIError as exc:
         if exc.status_code in {401, 403}: raise HTTPException(503, "The NVIDIA API key is invalid.")
         if exc.status_code == 429: raise HTTPException(429, "NVIDIA NIM is busy. Please try again shortly.")
@@ -123,8 +192,12 @@ async def ats_score(
     match_reason: str = Form(default="Selected for ATS scoring."),
     apply_url: str = Form(default="https://example.com/selected-role"),
     source: str = Form(default="CvolvePro"),
+    user_email: Optional[str] = Form(default=None),
 ):
     try:
+        if not user_email:
+            raise HTTPException(401, "Login is required before checking ATS score.")
+        await require_user_credits(user_email, 5, "ATS score")
         try:
             parsed_skills = json.loads(skills)
         except json.JSONDecodeError:
@@ -149,7 +222,11 @@ async def ats_score(
         except (ValidationError, TypeError) as exc:
             raise HTTPException(400, f"The selected job could not be normalized: {exc}")
         resume_text = await extract_resume_text(resume)
-        return await score_resume(settings, parsed_job, resume_text)
+        result = await score_resume(settings, parsed_job, resume_text)
+        user = await spend_user_credits(user_email, 5, "ATS score")
+        response = result.model_dump()
+        response["credits_remaining"] = user["credits"]
+        return response
     except HTTPException:
         raise
     except ValidationError:
@@ -168,7 +245,14 @@ async def ats_score(
 @app.post("/api/interview/start")
 async def interview_start(body: InterviewStartRequest):
     try:
-        return await generate_questions(settings, body.job, body.resume_text, body.ats_score, body.ats_summary)
+        if not body.user_email:
+            raise HTTPException(401, "Login is required before generating interview questions.")
+        await require_user_credits(body.user_email, 5, "interview questions")
+        result = await generate_questions(settings, body.job, body.resume_text, body.ats_score, body.ats_summary)
+        user = await spend_user_credits(body.user_email, 5, "interview questions")
+        return {**result, "credits_remaining": user["credits"]}
+    except HTTPException:
+        raise
     except NvidiaAPIError as exc:
         if exc.status_code in {401, 403}: raise HTTPException(503, "The NVIDIA API key is missing or invalid.")
         if exc.status_code == 429: raise HTTPException(429, "NVIDIA NIM is busy. Please try again shortly.")

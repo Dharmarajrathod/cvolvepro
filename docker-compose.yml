@@ -19,6 +19,15 @@ services:
       SEARCH_CONCURRENCY: ${SEARCH_CONCURRENCY:-4}
       SEARCH_SCOPE_LIMIT: ${SEARCH_SCOPE_LIMIT:-8}
       MAX_JOB_AGE_DAYS: ${MAX_JOB_AGE_DAYS:-365}
+      SMTP_HOST: ${SMTP_HOST:-smtp.hostinger.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USERNAME: ${SMTP_USERNAME:-no-reply@cvolvepro.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@cvolvepro.com}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-true}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
     ports: ["8000:8000"]
     depends_on: [db]
   web:

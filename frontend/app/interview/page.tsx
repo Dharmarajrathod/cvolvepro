@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Camera, CheckCircle2, ClipboardCheck, Loader2, Mic, MicOff, MessageSquareText, RotateCcw, Sparkles, Square, Trophy, Volume2 } from "lucide-react";
-import { API, AtsResult, InterviewFeedback } from "../shared";
+import { API, AtsResult, InterviewFeedback, readAuthUser, updateAuthUserCredits } from "../shared";
 
 type Answer = { question: string; answer: string };
 type SpeechRecognitionResultEvent = {
@@ -83,11 +83,13 @@ export default function InterviewPage() {
           job: parsed.job,
           resume_text: parsed.resume_text,
           ats_score: parsed.score,
-          ats_summary: parsed.verdict
+          ats_summary: parsed.verdict,
+          user_email: readAuthUser()?.email || null
         })
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "Interview questions could not be generated.");
+      if (typeof body.credits_remaining === "number") updateAuthUserCredits(body.credits_remaining);
       setQuestions(body.questions);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Interview questions could not be generated.");

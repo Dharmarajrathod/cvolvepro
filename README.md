@@ -5,6 +5,8 @@ An AI career search workspace that discovers roles across public job boards and 
 ## Run locally
 
 1. Copy `.env.example` to `.env` and add `NVIDIA_API_KEY` from NVIDIA Build. The default model is `nvidia/nemotron-3-super-120b-a12b`; set `NVIDIA_MODEL` to another NVIDIA-hosted or NVIDIA-compatible chat model if needed.
+   Email verification uses SMTP. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, and `SMTP_USE_SSL` when the defaults for `no-reply@cvolvepro.com` need to change.
+   Stripe Checkout uses `STRIPE_SECRET_KEY` on the backend and `STRIPE_PUBLISHABLE_KEY` for public configuration. Use real Stripe keys from the Stripe dashboard, usually starting with `sk_` and `pk_`.
 2. Start the API:
    ```bash
    cd backend
