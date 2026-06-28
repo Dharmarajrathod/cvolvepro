@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Camera, CheckCircle2, ClipboardCheck, Loader2, Mic, MicOff, MessageSquareText, RotateCcw, Sparkles, Square, Trophy, Volume2 } from "lucide-react";
 import { API, AtsResult, InterviewFeedback, readAuthUser, updateAuthUserCredits } from "../shared";
+import ProfileMenu from "../ProfileMenu";
 
 type Answer = { question: string; answer: string };
 type SpeechRecognitionResultEvent = {
@@ -220,11 +221,11 @@ export default function InterviewPage() {
   }
 
   if (!ats) {
-    return <main className="flow-page shell"><Link className="back-link" href="/ats"><ArrowLeft size={16}/>Back to ATS</Link><section className="flow-empty"><ClipboardCheck/><h1>ATS approval required</h1><p>Generate an ATS score above 70% before opening the interview room.</p></section></main>;
+    return <main className="flow-page shell"><nav className="flow-nav"><Link className="back-link" href="/ats"><ArrowLeft size={16}/>Back to ATS</Link><ProfileMenu showCredits/></nav><section className="flow-empty"><ClipboardCheck/><h1>ATS approval required</h1><p>Generate an ATS score above 70% before opening the interview room.</p></section></main>;
   }
 
   return <main className="flow-page shell">
-    <Link className="back-link" href="/ats"><ArrowLeft size={16}/>Back to ATS score</Link>
+    <nav className="flow-nav"><Link className="back-link" href="/ats"><ArrowLeft size={16}/>Back to ATS score</Link><ProfileMenu showCredits/></nav>
     <section className="interview-head">
       <div><span className="kicker">AI INTERVIEW</span><h1>{ats.job.title}</h1><p>{ats.job.company} · ATS {ats.score}%</p></div>
       <div className="progress-ring"><strong>{feedback ? 100 : progress}</strong><span>%</span></div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, LayoutDashboard, Search } from "lucide-react";
 import { API, readAuthUser, saveAuthUser } from "../../shared";
+import ProfileMenu from "../../ProfileMenu";
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
@@ -32,6 +33,7 @@ function PaymentSuccessContent() {
   }, [searchParams]);
 
   return <main className="payment-page shell">
+    <nav className="payment-nav"><a className="brand logo-brand" href="/"><img src="/images/cvolvepro-logo.png" alt="Cvolve Pro"/></a><ProfileMenu showCredits/></nav>
     <section className="payment-card">
       <CheckCircle2 size={42}/>
       <span className="kicker">PAYMENT COMPLETE</span>

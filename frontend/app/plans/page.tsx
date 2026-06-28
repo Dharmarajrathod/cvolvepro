@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, CreditCard } from "lucide-react";
 import { API, AuthUser, readAuthUser, saveAuthUser } from "../shared";
+import ProfileMenu from "../ProfileMenu";
 
 const personalPlans = [
   { id: "free", name: "Free", tag: "Best to try", price: "₹0", period: "forever", items: ["10 credits", "2 job searches", "2 ATS matches", "Community support"] },
@@ -73,7 +74,7 @@ export default function PlansPage() {
     <nav className="dashboard-nav">
       <Link className="back-link" href="/"><ArrowLeft size={16}/>Back home</Link>
       <a className="brand logo-brand" href="/"><img src="/images/cvolvepro-logo.png" alt="Cvolve Pro"/></a>
-      <span className="settings-link">{user?.account_type === "business" ? "Business" : "Personal"}</span>
+      <ProfileMenu showCredits/>
     </nav>
     <section className="dashboard-head">
       <div><span className="kicker">CHOOSE PLAN</span><h1>{user?.account_type === "business" ? "Business plans" : "Personal plans"}</h1><p>Select a plan to activate credits before entering your workspace.</p></div>

@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, ExternalLink, FileCheck2, LayoutDashboard, MapPin, Settings } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, ExternalLink, FileCheck2, LayoutDashboard, MapPin } from "lucide-react";
 import { AtsHistoryItem, AuthUser, readAtsHistory, readAuthUser } from "../shared";
+import ProfileMenu from "../ProfileMenu";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function DashboardPage() {
     <nav className="dashboard-nav">
       <Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link>
       <a className="brand logo-brand" href="/jobs"><img src="/images/cvolvepro-logo.png" alt="Cvolve Pro"/></a>
-      <Link className="settings-link" href="/settings"><Settings size={16}/>Settings</Link>
+      <ProfileMenu showCredits/>
     </nav>
 
     <section className="dashboard-head">

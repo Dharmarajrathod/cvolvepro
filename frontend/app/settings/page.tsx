@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Compass, Mail, Phone, Settings, UserRound } from "lucide-react";
+import { ArrowLeft, Compass, Mail, Phone, UserRound } from "lucide-react";
 import { AuthUser, readAuthUser } from "../shared";
+import ProfileMenu from "../ProfileMenu";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function SettingsPage() {
     <nav className="dashboard-nav">
       <Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link>
       <a className="brand logo-brand" href="/jobs"><img src="/images/cvolvepro-logo.png" alt="Cvolve Pro"/></a>
-      <Link className="settings-link" href="/dashboard"><Settings size={16}/>Dashboard</Link>
+      <ProfileMenu showCredits/>
     </nav>
     <section className="settings-panel">
       <span className="kicker">SETTINGS</span>

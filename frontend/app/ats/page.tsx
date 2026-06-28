@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, CheckCircle2, ExternalLink, FileUp, Loader2, MapPin, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
 import { API, AtsResult, Job, readAuthUser, readStoredJob, saveAtsHistory, updateAuthUserCredits } from "../shared";
+import ProfileMenu from "../ProfileMenu";
 
 export default function AtsPage() {
   const router = useRouter();
@@ -84,11 +85,11 @@ export default function AtsPage() {
   }
 
   if (!job) {
-    return <main className="flow-page shell"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><section className="flow-empty"><TriangleAlert/><h1>Select a role first</h1><p>Search jobs, choose a role, then check your ATS score from the role card.</p></section></main>;
+    return <main className="flow-page shell"><nav className="flow-nav"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><ProfileMenu showCredits/></nav><section className="flow-empty"><TriangleAlert/><h1>Select a role first</h1><p>Search jobs, choose a role, then check your ATS score from the role card.</p></section></main>;
   }
 
   return <main className="flow-page shell">
-    <Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link>
+    <nav className="flow-nav"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><ProfileMenu showCredits/></nav>
     <section className="flow-hero">
       <div>
         <span className="kicker">ATS READINESS</span>
