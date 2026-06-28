@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 import httpx
 from pydantic import ValidationError
 from .ai_career import extract_resume_text, generate_questions, grade_interview, score_resume
-from .auth import authenticate_user, consume_verification_code, create_user, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_plan_purchase_email, send_verification_code, spend_user_credits, update_user_plan
+from .auth import authenticate_user, consume_verification_code, create_user, ensure_unlimited_account, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_plan_purchase_email, send_verification_code, spend_user_credits, update_user_plan
 from .config import get_settings
 from .payments import FREE_PLAN_CREDITS, STRIPE_PLANS, create_checkout_session, retrieve_checkout_session
 from .schemas import AuthUserResponse, CheckoutSessionResponse, ConfirmCheckoutSessionRequest, CreateCheckoutSessionRequest, InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse, LoginRequest, RegisterRequest, ResetPasswordRequest, SelectFreePlanRequest, SendVerificationCodeRequest
@@ -82,6 +82,7 @@ def parse_selected_job(payload: Optional[str], fallback: Optional[dict] = None) 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_auth_database(settings.database_url)
+    await ensure_unlimited_account(settings)
     yield
 
 app = FastAPI(title="CvolvePro API", version="1.0.0", lifespan=lifespan, docs_url="/docs")

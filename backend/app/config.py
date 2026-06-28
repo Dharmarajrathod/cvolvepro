@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
+    unlimited_account_email: str = ""
+    unlimited_account_password: str = ""
+    unlimited_account_name: str = "CvolvePro Admin"
+    unlimited_account_mobile: str = ""
+    unlimited_account_country: str = "India"
     model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     @property

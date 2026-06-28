@@ -55,6 +55,8 @@ class EmailVerificationCode(Base):
 
 engine = None
 SessionLocal: Optional[async_sessionmaker[AsyncSession]] = None
+UNLIMITED_CREDITS = 999_999_999
+UNLIMITED_PLAN_ID = "unlimited"
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -77,6 +79,39 @@ async def init_auth_database(database_url: str) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_user_columns(conn)
+
+
+async def ensure_unlimited_account(settings: Settings) -> None:
+    if not settings.unlimited_account_email or not settings.unlimited_account_password:
+        return
+    normalized_email = normalize_email(settings.unlimited_account_email)
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        user = await session.scalar(select(User).where(User.email == normalized_email))
+        if user:
+            user.name = settings.unlimited_account_name.strip() or user.name
+            user.password_hash = hash_secret(settings.unlimited_account_password)
+            user.mobile_number = settings.unlimited_account_mobile.strip() or user.mobile_number or "-"
+            user.country = settings.unlimited_account_country.strip() or user.country or "India"
+            user.account_type = "business"
+            user.credits = UNLIMITED_CREDITS
+            user.plan_id = UNLIMITED_PLAN_ID
+            user.personal_ip = None
+            user.email_verified = True
+        else:
+            session.add(User(
+                name=settings.unlimited_account_name.strip() or "CvolvePro Admin",
+                email=normalized_email,
+                password_hash=hash_secret(settings.unlimited_account_password),
+                mobile_number=settings.unlimited_account_mobile.strip() or "-",
+                country=settings.unlimited_account_country.strip() or "India",
+                account_type="business",
+                credits=UNLIMITED_CREDITS,
+                plan_id=UNLIMITED_PLAN_ID,
+                personal_ip=None,
+                email_verified=True,
+            ))
+        await session.commit()
 
 
 async def ensure_user_columns(conn) -> None:
@@ -360,6 +395,10 @@ async def spend_user_credits(email: str, amount: int, action: str) -> dict[str, 
         user = await session.scalar(select(User).where(User.email == normalized_email))
         if not user:
             raise HTTPException(401, "Login is required.")
+        if user.plan_id == UNLIMITED_PLAN_ID:
+            user.credits = UNLIMITED_CREDITS
+            await session.commit()
+            return public_user(user)
         if user.credits < amount:
             raise HTTPException(402, f"Not enough credits for {action}. Please choose a plan.")
         user.credits -= amount
@@ -374,5 +413,7 @@ async def require_user_credits(email: str, amount: int, action: str) -> None:
         user = await session.scalar(select(User).where(User.email == normalized_email))
         if not user:
             raise HTTPException(401, "Login is required.")
+        if user.plan_id == UNLIMITED_PLAN_ID:
+            return
         if user.credits < amount:
             raise HTTPException(402, f"Not enough credits for {action}. Please choose a plan.")
