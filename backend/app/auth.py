@@ -53,9 +53,17 @@ engine = None
 SessionLocal: Optional[async_sessionmaker[AsyncSession]] = None
 
 
+def normalize_database_url(database_url: str) -> str:
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if database_url.startswith("postgres://"):
+        return database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    return database_url
+
+
 def configure_database(database_url: str) -> None:
     global engine, SessionLocal
-    engine = create_async_engine(database_url, future=True)
+    engine = create_async_engine(normalize_database_url(database_url), future=True)
     SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
