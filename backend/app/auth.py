@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import logging
 import secrets
 import smtplib
 from datetime import datetime, timedelta, timezone
@@ -15,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -183,6 +186,7 @@ async def send_verification_code(settings: Settings, email: str) -> None:
     except HTTPException:
         raise
     except Exception as exc:
+        logger.exception("SMTP verification email failed for %s", normalized_email)
         raise HTTPException(502, "Could not send the verification email. Check SMTP settings and try again.") from exc
 
 
