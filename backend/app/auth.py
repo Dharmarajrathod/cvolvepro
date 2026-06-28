@@ -161,6 +161,30 @@ def build_verification_email(settings: Settings, email: str, code: str) -> Email
     return message
 
 
+def build_plan_purchase_email(settings: Settings, email: str, plan_name: str, credits: int, amount_label: str) -> EmailMessage:
+    message = EmailMessage()
+    message["From"] = settings.smtp_from_email
+    message["To"] = email
+    message["Subject"] = f"Your CvolvePro {plan_name} plan is active"
+    message.set_content(
+        "\n".join(
+            [
+                "Thank you for choosing CvolvePro.",
+                "",
+                f"Plan: {plan_name}",
+                f"Amount paid: {amount_label}",
+                f"Credits added: {credits}",
+                "",
+                "You can now use your credits for job search, ATS score checks, and mock interview questions.",
+                "",
+                "Thanks,",
+                "CvolvePro",
+            ]
+        )
+    )
+    return message
+
+
 def send_email(settings: Settings, message: EmailMessage) -> None:
     if settings.resend_api_key:
         response = httpx.post(
@@ -209,6 +233,18 @@ async def send_verification_code(settings: Settings, email: str) -> None:
     except Exception as exc:
         logger.exception("SMTP verification email failed for %s", normalized_email)
         raise HTTPException(502, "Could not send the verification email. Check SMTP settings and try again.") from exc
+
+
+async def send_plan_purchase_email(settings: Settings, email: str, plan_name: str, credits: int, amount_label: str) -> None:
+    normalized_email = normalize_email(email)
+    try:
+        await asyncio.to_thread(
+            send_email,
+            settings,
+            build_plan_purchase_email(settings, normalized_email, plan_name, credits, amount_label),
+        )
+    except Exception:
+        logger.exception("Plan purchase email failed for %s", normalized_email)
 
 
 async def consume_verification_code(email: str, code: str) -> None:

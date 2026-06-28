@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 import httpx
 from pydantic import ValidationError
 from .ai_career import extract_resume_text, generate_questions, grade_interview, score_resume
-from .auth import authenticate_user, consume_verification_code, create_user, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_verification_code, spend_user_credits, update_user_plan
+from .auth import authenticate_user, consume_verification_code, create_user, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_plan_purchase_email, send_verification_code, spend_user_credits, update_user_plan
 from .config import get_settings
 from .payments import FREE_PLAN_CREDITS, STRIPE_PLANS, create_checkout_session, retrieve_checkout_session
 from .schemas import AuthUserResponse, CheckoutSessionResponse, ConfirmCheckoutSessionRequest, CreateCheckoutSessionRequest, InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse, LoginRequest, RegisterRequest, ResetPasswordRequest, SelectFreePlanRequest, SendVerificationCodeRequest
@@ -153,7 +153,12 @@ async def payments_confirm_session(body: ConfirmCheckoutSessionRequest):
     email = body.email or session.get("customer_details", {}).get("email") or session.get("customer_email")
     if not email:
         raise HTTPException(400, "Stripe session does not include a customer email.")
-    return await update_user_plan(email, plan_id, plan.credits)
+    user = await update_user_plan(email, plan_id, plan.credits)
+    amount_total = session.get("amount_total") or plan.amount
+    currency = (session.get("currency") or plan.currency).upper()
+    amount_label = f"{currency} {amount_total / 100:,.2f}"
+    await send_plan_purchase_email(settings, email, plan.name, plan.credits, amount_label)
+    return user
 
 @app.post("/api/jobs/search", response_model=JobSearchResponse)
 async def job_search(body: JobSearchRequest):
