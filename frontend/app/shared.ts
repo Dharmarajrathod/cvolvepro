@@ -83,14 +83,14 @@ export const fallbackPricing: RegionalPricing = {
   country_code: null,
   personal_plans: [
     { id: "free", name: "Free", tag: "Best to try", price: "$0", period: "forever", items: ["10 credits", "2 job searches", "2 ATS matches", "Community support"] },
-    { id: "classic", name: "Classic", tag: "Best for starters", price: "$9", period: "month", items: ["50 credits", "10 job searches", "10 ATS matches", "2 AI interviews", "Email support"] },
-    { id: "premium", name: "Premium", tag: "Best value", price: "$13", period: "month", items: ["100 credits", "20 job searches", "20 ATS matches", "5 AI interviews", "Priority support"] },
-    { id: "premium_plus", name: "Premium Plus", tag: "Best for active search", price: "$29", period: "3 months", items: ["350 credits", "70 job searches", "70 ATS matches", "17 AI interviews", "Priority support"] },
+    { id: "classic", name: "Classic", tag: "Best for starters", price: "$20", period: "month", items: ["50 credits", "10 job searches", "10 ATS matches", "2 AI interviews", "Email support"] },
+    { id: "premium", name: "Premium", tag: "Best value", price: "$35", period: "month", items: ["100 credits", "20 job searches", "20 ATS matches", "5 AI interviews", "Priority support"] },
+    { id: "premium_plus", name: "Premium Plus", tag: "Best for active search", price: "$90", period: "3 months", items: ["350 credits", "70 job searches", "70 ATS matches", "17 AI interviews", "Priority support"] },
   ],
   business_plans: [
-    { id: "business_starter", name: "Business Starter", tag: "Best for small teams", price: "$49", period: "month", items: ["500 credits", "Up to 5 team members", "Shared credits", "Job Search, ATS, AI Interview"] },
-    { id: "business_growth", name: "Business Growth", tag: "Best value for teams", price: "$129", period: "quarter", items: ["2,000 credits", "Up to 15 team members", "Shared dashboard", "Priority support"] },
-    { id: "business_enterprise", name: "Business Enterprise", tag: "Best for scale", price: "$499", period: "year", items: ["10,000 credits", "Unlimited team members", "API and analytics", "Priority support"] },
+    { id: "business_starter", name: "Business Starter", tag: "Best for small teams", price: "$79", period: "month", items: ["500 credits", "Up to 5 team members", "Shared credits", "Job Search, ATS, AI Interview"] },
+    { id: "business_growth", name: "Business Growth", tag: "Best value for teams", price: "$199", period: "quarter", items: ["2,000 credits", "Up to 15 team members", "Shared dashboard", "Priority support"] },
+    { id: "business_enterprise", name: "Business Enterprise", tag: "Best for scale", price: "$799", period: "year", items: ["10,000 credits", "Unlimited team members", "API and analytics", "Priority support"] },
   ],
 };
 

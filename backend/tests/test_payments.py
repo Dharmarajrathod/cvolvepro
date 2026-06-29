@@ -17,4 +17,4 @@ def test_pricing_region_uses_international_for_other_country_codes():
 
 def test_public_pricing_returns_regional_prices():
     assert public_pricing("india")["personal_plans"][1]["price"] == "₹499"
-    assert public_pricing("international")["personal_plans"][1]["price"] == "$9"
+    assert public_pricing("international")["personal_plans"][1]["price"] == "$20"

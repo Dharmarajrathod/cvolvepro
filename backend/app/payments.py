@@ -50,12 +50,12 @@ REGIONAL_STRIPE_PLANS: dict[PricingRegion, dict[str, StripePlan]] = {
         "business_enterprise": stripe_plan("business_enterprise", 2_499_900, "inr", 10_000, "Yearly access", "₹24,999"),
     },
     "international": {
-        "classic": stripe_plan("classic", 900, "usd", 50, "Monthly access", "$9"),
-        "premium": stripe_plan("premium", 1_300, "usd", 100, "Monthly access", "$13"),
-        "premium_plus": stripe_plan("premium_plus", 2_900, "usd", 350, "3 months access", "$29"),
-        "business_starter": stripe_plan("business_starter", 4_900, "usd", 500, "Monthly access", "$49"),
-        "business_growth": stripe_plan("business_growth", 12_900, "usd", 2_000, "Quarterly access", "$129"),
-        "business_enterprise": stripe_plan("business_enterprise", 49_900, "usd", 10_000, "Yearly access", "$499"),
+        "classic": stripe_plan("classic", 2_000, "usd", 50, "Monthly access", "$20"),
+        "premium": stripe_plan("premium", 3_500, "usd", 100, "Monthly access", "$35"),
+        "premium_plus": stripe_plan("premium_plus", 9_000, "usd", 350, "3 months access", "$90"),
+        "business_starter": stripe_plan("business_starter", 7_900, "usd", 500, "Monthly access", "$79"),
+        "business_growth": stripe_plan("business_growth", 19_900, "usd", 2_000, "Quarterly access", "$199"),
+        "business_enterprise": stripe_plan("business_enterprise", 79_900, "usd", 10_000, "Yearly access", "$799"),
     },
 }
 STRIPE_PLANS = REGIONAL_STRIPE_PLANS["india"]
