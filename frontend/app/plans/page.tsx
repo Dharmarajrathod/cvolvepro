@@ -4,25 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, CreditCard } from "lucide-react";
-import { API, AuthUser, readAuthUser, saveAuthUser } from "../shared";
+import { API, AuthUser, fallbackPricing, fetchRegionalPricing, PricingPlan, readAuthUser, saveAuthUser } from "../shared";
 import ProfileMenu from "../ProfileMenu";
-
-const personalPlans = [
-  { id: "free", name: "Free", tag: "Best to try", price: "₹0", period: "forever", items: ["10 credits", "2 job searches", "2 ATS matches", "Community support"] },
-  { id: "classic", name: "Classic", tag: "Best for starters", price: "₹499", period: "month", items: ["50 credits", "10 job searches", "10 ATS matches", "2 AI interviews", "Email support"] },
-  { id: "premium", name: "Premium", tag: "Best value", price: "₹699", period: "month", items: ["100 credits", "20 job searches", "20 ATS matches", "5 AI interviews", "Priority support"] },
-  { id: "premium_plus", name: "Premium Plus", tag: "Best for active search", price: "₹1,799", period: "3 months", items: ["350 credits", "70 job searches", "70 ATS matches", "17 AI interviews", "Priority support"] },
-] as const;
-
-const businessPlans = [
-  { id: "business_starter", name: "Business Starter", tag: "Best for small teams", price: "₹2,499", period: "month", items: ["500 credits", "Up to 5 team members", "Shared credits", "Job Search, ATS, AI Interview"] },
-  { id: "business_growth", name: "Business Growth", tag: "Best value for teams", price: "₹6,499", period: "quarter", items: ["2,000 credits", "Up to 15 team members", "Shared dashboard", "Priority support"] },
-  { id: "business_enterprise", name: "Business Enterprise", tag: "Best for scale", price: "₹24,999", period: "year", items: ["10,000 credits", "Unlimited team members", "API and analytics", "Priority support"] },
-] as const;
 
 export default function PlansPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [personalPlans, setPersonalPlans] = useState<PricingPlan[]>(fallbackPricing.personal_plans);
+  const [businessPlans, setBusinessPlans] = useState<PricingPlan[]>(fallbackPricing.business_plans);
   const [busyPlan, setBusyPlan] = useState("");
   const [error, setError] = useState("");
 
@@ -36,6 +25,15 @@ export default function PlansPage() {
     }
     setUser(currentUser);
   }, [router]);
+
+  useEffect(() => {
+    fetchRegionalPricing()
+      .then(pricing => {
+        setPersonalPlans(pricing.personal_plans);
+        setBusinessPlans(pricing.business_plans);
+      })
+      .catch(() => {});
+  }, []);
 
   async function request(path: string, body: object) {
     const response = await fetch(`${API}${path}`, {

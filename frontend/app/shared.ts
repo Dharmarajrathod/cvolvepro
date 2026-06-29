@@ -62,6 +62,44 @@ export type AuthUser = {
   plan_id?: string;
 };
 
+export type PricingPlan = {
+  id: string;
+  name: string;
+  tag: string;
+  price: string;
+  period: string;
+  items: string[];
+};
+
+export type RegionalPricing = {
+  region: "india" | "international";
+  country_code: string | null;
+  personal_plans: PricingPlan[];
+  business_plans: PricingPlan[];
+};
+
+export const fallbackPricing: RegionalPricing = {
+  region: "international",
+  country_code: null,
+  personal_plans: [
+    { id: "free", name: "Free", tag: "Best to try", price: "$0", period: "forever", items: ["10 credits", "2 job searches", "2 ATS matches", "Community support"] },
+    { id: "classic", name: "Classic", tag: "Best for starters", price: "$9", period: "month", items: ["50 credits", "10 job searches", "10 ATS matches", "2 AI interviews", "Email support"] },
+    { id: "premium", name: "Premium", tag: "Best value", price: "$13", period: "month", items: ["100 credits", "20 job searches", "20 ATS matches", "5 AI interviews", "Priority support"] },
+    { id: "premium_plus", name: "Premium Plus", tag: "Best for active search", price: "$29", period: "3 months", items: ["350 credits", "70 job searches", "70 ATS matches", "17 AI interviews", "Priority support"] },
+  ],
+  business_plans: [
+    { id: "business_starter", name: "Business Starter", tag: "Best for small teams", price: "$49", period: "month", items: ["500 credits", "Up to 5 team members", "Shared credits", "Job Search, ATS, AI Interview"] },
+    { id: "business_growth", name: "Business Growth", tag: "Best value for teams", price: "$129", period: "quarter", items: ["2,000 credits", "Up to 15 team members", "Shared dashboard", "Priority support"] },
+    { id: "business_enterprise", name: "Business Enterprise", tag: "Best for scale", price: "$499", period: "year", items: ["10,000 credits", "Unlimited team members", "API and analytics", "Priority support"] },
+  ],
+};
+
+export async function fetchRegionalPricing() {
+  const response = await fetch(`${API}/api/pricing`);
+  if (!response.ok) throw new Error("Pricing could not be loaded.");
+  return await response.json() as RegionalPricing;
+}
+
 export function readAuthUser() {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(AUTH_KEY);

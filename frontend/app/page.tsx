@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, BarChart3, BookOpen, Check, FileText, LayoutDashboard, LogOut, Mail, Mic, ScanSearch, Settings, ShieldCheck, Sparkles, Star, UserPlus } from "lucide-react";
-import { API, AuthUser, clearAuthUser, readAuthUser } from "./shared";
+import { API, AuthUser, clearAuthUser, fallbackPricing, fetchRegionalPricing, PricingPlan, readAuthUser } from "./shared";
 
 const features = [
   ["Live Job Search", "Search job openings from public boards and company career pages in one workspace.", ScanSearch],
@@ -21,22 +21,22 @@ const steps = [
   ["04", "Practice interview", "Generate mock interview questions for the same job and prepare your answers."],
 ] as const;
 
-const plans = [
-  { id: "free", name: "Free", tag: "Best to try", price: "₹0", period: "forever", items: ["10 credits", "Job Search", "ATS Match", "AI Interview", "Community support"] },
-  { id: "classic", name: "Classic", tag: "Best for starters", price: "₹499", period: "month", items: ["50 credits", "Job Search", "ATS Match", "AI Interview", "Email support"] },
-  { id: "premium", name: "Premium", tag: "Best value", price: "₹699", period: "month", items: ["100 credits", "Job Search", "ATS Match", "AI Interview", "Priority support"] },
-  { id: "premium_plus", name: "Premium Plus", tag: "Best for active search", price: "₹1,799", period: "3 months", items: ["350 credits", "Job Search", "ATS Match", "AI Interview", "Priority support"] },
-] as const;
-
 export default function LandingPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [plans, setPlans] = useState<PricingPlan[]>(fallbackPricing.personal_plans);
   const [profileOpen, setProfileOpen] = useState(false);
   const [payingPlan, setPayingPlan] = useState("");
   const [paymentError, setPaymentError] = useState("");
 
   useEffect(() => {
     setUser(readAuthUser());
+  }, []);
+
+  useEffect(() => {
+    fetchRegionalPricing()
+      .then(pricing => setPlans(pricing.personal_plans))
+      .catch(() => {});
   }, []);
 
   function openAuth(mode: "login" | "register") {

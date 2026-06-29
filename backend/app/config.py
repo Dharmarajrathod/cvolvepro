@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b"
     database_url: str = "sqlite+aiosqlite:///./career.db"
-    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+    allowed_origins: str = "https://cvolvepro.com,https://www.cvolvepro.com,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
     max_results: int = 200
     results_per_region: int = 12
     search_concurrency: int = 4

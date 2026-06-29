@@ -47,11 +47,16 @@ export default function AuthPage() {
   }, []);
 
   async function request(path: string, body: object) {
-    const response = await fetch(`${API}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error(`Could not connect to the API at ${API}. Start the backend server and try again.`);
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(data.detail || "Something went wrong. Please try again.");

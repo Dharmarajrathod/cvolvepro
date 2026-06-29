@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from .ai_career import extract_resume_text, generate_questions, grade_interview, score_resume
 from .auth import authenticate_user, consume_verification_code, create_user, ensure_unlimited_account, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_plan_purchase_email, send_verification_code, spend_user_credits, update_user_plan
 from .config import get_settings
-from .payments import FREE_PLAN_CREDITS, STRIPE_PLANS, create_checkout_session, retrieve_checkout_session
+from .payments import FREE_PLAN_CREDITS, STRIPE_PLANS, create_checkout_session, get_regional_plan, pricing_region_for_request, public_pricing, retrieve_checkout_session
 from .schemas import AuthUserResponse, CheckoutSessionResponse, ConfirmCheckoutSessionRequest, CreateCheckoutSessionRequest, InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse, LoginRequest, RegisterRequest, ResetPasswordRequest, SelectFreePlanRequest, SendVerificationCodeRequest
 from .search import NvidiaAPIError, search_jobs
 
@@ -104,6 +104,10 @@ async def security_and_rate_limit(request: Request, call_next):
 @app.get("/health")
 async def health(): return {"status":"ok", "service":"cvolvepro-api"}
 
+@app.get("/api/pricing")
+async def pricing(request: Request):
+    return public_pricing(pricing_region_for_request(request))
+
 @app.post("/api/auth/send-code")
 async def auth_send_code(body: SendVerificationCodeRequest):
     await send_verification_code(settings, body.email)
@@ -124,7 +128,7 @@ async def auth_reset_password(body: ResetPasswordRequest):
     return await reset_user_password(body.email, body.password)
 
 @app.post("/api/payments/create-checkout-session", response_model=CheckoutSessionResponse)
-async def payments_create_checkout_session(body: CreateCheckoutSessionRequest):
+async def payments_create_checkout_session(body: CreateCheckoutSessionRequest, request: Request):
     if not body.email:
         raise HTTPException(401, "Login is required before payment.")
     user = await get_public_user(body.email)
@@ -133,7 +137,7 @@ async def payments_create_checkout_session(body: CreateCheckoutSessionRequest):
         raise HTTPException(403, "Personal accounts can only choose personal plans.")
     if user.get("account_type") == "business" and not is_business_plan:
         raise HTTPException(403, "Business accounts can only choose business plans.")
-    return await create_checkout_session(settings, body.plan_id, body.email)
+    return await create_checkout_session(settings, body.plan_id, pricing_region_for_request(request), body.email)
 
 @app.post("/api/payments/select-free-plan", response_model=AuthUserResponse)
 async def payments_select_free_plan(body: SelectFreePlanRequest):
@@ -147,8 +151,10 @@ async def payments_confirm_session(body: ConfirmCheckoutSessionRequest):
     session = await retrieve_checkout_session(settings, body.session_id)
     if session.get("payment_status") != "paid":
         raise HTTPException(402, "Stripe payment has not completed.")
-    plan_id = session.get("metadata", {}).get("plan_id")
-    plan = STRIPE_PLANS.get(plan_id or "")
+    metadata = session.get("metadata", {})
+    plan_id = metadata.get("plan_id")
+    pricing_region = metadata.get("pricing_region") or "india"
+    plan = get_regional_plan(plan_id or "", pricing_region) or STRIPE_PLANS.get(plan_id or "")
     if not plan:
         raise HTTPException(400, "Stripe session does not include a valid plan.")
     email = body.email or session.get("customer_details", {}).get("email") or session.get("customer_email")
