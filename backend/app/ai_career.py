@@ -380,6 +380,24 @@ def matched_resume_lines(resume_text: str, terms: list[str], limit: int = 4) -> 
     return combined[:limit]
 
 
+def role_family(job: JobResult, terms: list[str]) -> str:
+    text = " ".join([job.title, job.summary, " ".join(terms)]).lower()
+    families = [
+        ("data", ("data", "analytics", "sql", "python", "machine learning", "model", "dashboard", "excel", "power bi", "tableau")),
+        ("frontend", ("frontend", "front-end", "react", "javascript", "typescript", "css", "ui", "accessibility")),
+        ("backend", ("backend", "api", "database", "microservice", "server", "django", "fastapi", "node", "java")),
+        ("devops", ("devops", "cloud", "aws", "azure", "docker", "kubernetes", "ci/cd", "terraform")),
+        ("mobile", ("android", "ios", "flutter", "react native", "mobile")),
+        ("security", ("security", "soc", "iam", "threat", "vulnerability", "compliance")),
+        ("sales", ("sales", "crm", "pipeline", "lead", "quota", "client", "customer")),
+        ("marketing", ("marketing", "campaign", "seo", "content", "brand", "social media", "conversion")),
+    ]
+    for family, markers in families:
+        if any(marker in text for marker in markers):
+            return family
+    return "general"
+
+
 def technical_interview_questions(job: JobResult, resume_text: str, ats_score: int, ats_summary: str | None = None) -> list[str]:
     target_role = role_label(job)
     cleaned_summary = clean_job_text(job.summary)
@@ -403,10 +421,49 @@ def technical_interview_questions(job: JobResult, resume_text: str, ats_score: i
     responsibility = responsibility_lines[0] if responsibility_lines else f"use {primary} for the work described in the job description"
     second_responsibility = responsibility_lines[1] if len(responsibility_lines) > 1 else responsibility
     summary_hint = ats_summary or "the ATS review"
+    family = role_family(job, deduped_terms)
 
-    return [
-        f"The JD says \"{responsibility}\". How would you approach that work using {primary}, and what would you deliver first?",
-        f"Your resume says: \"{project_line}\". Walk through the technical architecture, tools, and your exact contribution.",
+    family_questions = {
+        "data": [
+            f"The JD points to {primary}. What dataset would you need, how would you clean it, and which metric would prove the analysis is useful?",
+            f"Using your resume line \"{project_line}\", explain the SQL/Python/analytics steps you would take to reproduce that outcome for this role.",
+        ],
+        "frontend": [
+            f"The JD points to {primary}. How would you structure the UI state, components, and accessibility checks for \"{responsibility}\"?",
+            f"Using your resume line \"{project_line}\", explain how you handled rendering, API data, errors, and performance.",
+        ],
+        "backend": [
+            f"The JD points to {primary}. Design the endpoint, data model, validation, and failure handling for \"{responsibility}\".",
+            f"Using your resume line \"{project_line}\", explain the backend architecture, database choices, and scaling bottlenecks.",
+        ],
+        "devops": [
+            f"The JD points to {primary}. How would you build the deployment, monitoring, rollback, and alerting plan for \"{responsibility}\"?",
+            f"Using your resume line \"{project_line}\", explain the pipeline or infrastructure decisions and how you kept it reliable.",
+        ],
+        "mobile": [
+            f"The JD points to {primary}. How would you design the mobile screen flow, offline/error states, and release validation for \"{responsibility}\"?",
+            f"Using your resume line \"{project_line}\", explain the app architecture, state management, and device testing strategy.",
+        ],
+        "security": [
+            f"The JD points to {primary}. How would you identify, prioritize, and remediate risks in \"{responsibility}\"?",
+            f"Using your resume line \"{project_line}\", explain the security controls, evidence, and escalation path you used.",
+        ],
+        "sales": [
+            f"The JD points to {primary}. How would you qualify a lead, map stakeholders, and move an opportunity tied to \"{responsibility}\"?",
+            f"Using your resume line \"{project_line}\", explain your sales process, objection handling, and conversion metric.",
+        ],
+        "marketing": [
+            f"The JD points to {primary}. How would you plan the campaign, audience, channel mix, and success metrics for \"{responsibility}\"?",
+            f"Using your resume line \"{project_line}\", explain the creative/testing decisions and what performance data changed your approach.",
+        ],
+        "general": [
+            f"The JD says \"{responsibility}\". How would you approach that work using {primary}, and what would you deliver first?",
+            f"Your resume says: \"{project_line}\". Walk through the tools, workflow, and your exact contribution.",
+        ],
+    }
+
+    questions = [
+        *family_questions[family],
         f"The job description emphasizes {primary}, {secondary}, and {tertiary}. Which of these is your strongest area, and what production-level example proves it?",
         f"Compare \"{second_responsibility}\" with your resume line \"{second_line}\". What parts already match, and what would you need to learn or adapt?",
         f"If you had to improve or scale the work described in \"{second_line}\", what would you change technically and how would you measure success?",
@@ -416,6 +473,7 @@ def technical_interview_questions(job: JobResult, resume_text: str, ats_score: i
         f"Your resume also says: \"{third_line}\". Which metric, log, user feedback, or review signal would prove this work succeeded in the {target_role} role?",
         f"On day one as {target_role}, if assigned \"{responsibility}\", what exact technical steps would you take in the first week?",
     ]
+    return questions[:10]
 
 
 def fallback_interview_feedback(job: JobResult, answers: list[InterviewAnswer], score: int) -> dict:

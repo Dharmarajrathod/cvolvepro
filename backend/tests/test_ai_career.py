@@ -81,6 +81,38 @@ def test_technical_interview_questions_use_job_and_resume_context():
     assert "what tradeoffs would you consider" not in joined
 
 
+def test_different_jobs_get_different_interview_questions():
+    data_job = JobResult.model_validate({
+        "id": "data-analyst",
+        "title": "Data Analyst",
+        "company": "Acme",
+        "location": "Remote",
+        "work_mode": "Remote",
+        "employment_type": "Full-time",
+        "salary": None,
+        "experience": "2+ years",
+        "posted_at": None,
+        "skills": ["SQL", "Python", "Tableau", "A/B testing"],
+        "summary": "Analyze product funnels, clean event datasets, build Tableau dashboards, write SQL queries, and explain experiment results to product managers.",
+        "match_score": 0,
+        "match_reason": "Test role.",
+        "apply_url": "https://example.com/data-analyst",
+        "source": "Test",
+    })
+    data_resume = (
+        "Data analyst with 3 years using SQL and Python to clean customer datasets. "
+        "Built Tableau dashboards for funnel conversion and presented A/B testing results to product teams."
+    )
+    frontend_questions = technical_interview_questions(sample_job(), sample_resume(), 82, "Strong React and TypeScript fit.")
+    data_questions = technical_interview_questions(data_job, data_resume, 78, "Strong SQL and dashboard fit.")
+    frontend_joined = " ".join(frontend_questions).lower()
+    data_joined = " ".join(data_questions).lower()
+    assert frontend_questions != data_questions
+    assert "ui state" in frontend_joined or "rendering" in frontend_joined
+    assert "dataset" in data_joined
+    assert "sql" in data_joined
+
+
 @pytest.mark.asyncio
 async def test_score_resume_replaces_zero_model_score_with_evidence_score(monkeypatch):
     async def fake_nvidia_json(*_args, **_kwargs):

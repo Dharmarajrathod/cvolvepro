@@ -53,6 +53,21 @@ function jobResponsibilityLines(ats: AtsResult) {
     .slice(0, 3);
 }
 
+function roleFamily(ats: AtsResult, skills: string[]) {
+  const text = `${ats.job.title} ${ats.job.summary} ${skills.join(" ")}`.toLowerCase();
+  const families = [
+    ["data", ["data", "analytics", "sql", "python", "machine learning", "model", "dashboard", "excel", "power bi", "tableau"]],
+    ["frontend", ["frontend", "front-end", "react", "javascript", "typescript", "css", "ui", "accessibility"]],
+    ["backend", ["backend", "api", "database", "microservice", "server", "django", "fastapi", "node", "java"]],
+    ["devops", ["devops", "cloud", "aws", "azure", "docker", "kubernetes", "ci/cd", "terraform"]],
+    ["mobile", ["android", "ios", "flutter", "react native", "mobile"]],
+    ["security", ["security", "soc", "iam", "threat", "vulnerability", "compliance"]],
+    ["sales", ["sales", "crm", "pipeline", "lead", "quota", "client", "customer"]],
+    ["marketing", ["marketing", "campaign", "seo", "content", "brand", "social media", "conversion"]],
+  ] as const;
+  return families.find(([, markers]) => markers.some(marker => text.includes(marker)))?.[0] || "general";
+}
+
 function fallbackQuestions(ats: AtsResult) {
   const role = ats.job.title || "this role";
   const skills = jobSkills(ats);
@@ -66,9 +81,47 @@ function fallbackQuestions(ats: AtsResult) {
   const thirdLine = evidence[2] || secondLine;
   const responsibility = responsibilities[0] || `use ${primary} for the work described in the job description`;
   const secondResponsibility = responsibilities[1] || responsibility;
+  const family = roleFamily(ats, skills);
+  const familyQuestions: Record<string, string[]> = {
+    data: [
+      `The JD points to ${primary}. What dataset would you need, how would you clean it, and which metric would prove the analysis is useful?`,
+      `Using your resume line "${projectLine}", explain the SQL/Python/analytics steps you would take to reproduce that outcome for this role.`,
+    ],
+    frontend: [
+      `The JD points to ${primary}. How would you structure the UI state, components, and accessibility checks for "${responsibility}"?`,
+      `Using your resume line "${projectLine}", explain how you handled rendering, API data, errors, and performance.`,
+    ],
+    backend: [
+      `The JD points to ${primary}. Design the endpoint, data model, validation, and failure handling for "${responsibility}".`,
+      `Using your resume line "${projectLine}", explain the backend architecture, database choices, and scaling bottlenecks.`,
+    ],
+    devops: [
+      `The JD points to ${primary}. How would you build the deployment, monitoring, rollback, and alerting plan for "${responsibility}"?`,
+      `Using your resume line "${projectLine}", explain the pipeline or infrastructure decisions and how you kept it reliable.`,
+    ],
+    mobile: [
+      `The JD points to ${primary}. How would you design the mobile screen flow, offline/error states, and release validation for "${responsibility}"?`,
+      `Using your resume line "${projectLine}", explain the app architecture, state management, and device testing strategy.`,
+    ],
+    security: [
+      `The JD points to ${primary}. How would you identify, prioritize, and remediate risks in "${responsibility}"?`,
+      `Using your resume line "${projectLine}", explain the security controls, evidence, and escalation path you used.`,
+    ],
+    sales: [
+      `The JD points to ${primary}. How would you qualify a lead, map stakeholders, and move an opportunity tied to "${responsibility}"?`,
+      `Using your resume line "${projectLine}", explain your sales process, objection handling, and conversion metric.`,
+    ],
+    marketing: [
+      `The JD points to ${primary}. How would you plan the campaign, audience, channel mix, and success metrics for "${responsibility}"?`,
+      `Using your resume line "${projectLine}", explain the creative/testing decisions and what performance data changed your approach.`,
+    ],
+    general: [
+      `The JD says "${responsibility}". How would you approach that work using ${primary}, and what would you deliver first?`,
+      `Your resume says: "${projectLine}". Walk through the tools, workflow, and your exact contribution.`,
+    ],
+  };
   return [
-    `The JD says "${responsibility}". How would you approach that work using ${primary}, and what would you deliver first?`,
-    `Your resume says: "${projectLine}". Walk through the technical architecture, tools, and your exact contribution.`,
+    ...familyQuestions[family],
     `The job description emphasizes ${primary}, ${secondary}, and ${tertiary}. Which is your strongest area, and what production-level example proves it?`,
     `Compare "${secondResponsibility}" with your resume line "${secondLine}". What parts already match, and what would you need to learn or adapt?`,
     `If you had to improve or scale the work described in "${secondLine}", what would you change technically and how would you measure success?`,
