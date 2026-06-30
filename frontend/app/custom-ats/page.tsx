@@ -8,7 +8,8 @@ import { API, AtsResult, Job, readAuthUser, saveAtsHistory, updateAuthUserCredit
 import ProfileMenu from "../ProfileMenu";
 
 function makeJob(title: string, company: string, description: string, skillsText: string): Job {
-  const cleanedTitle = title.trim() || "Pasted job description";
+  const cleanedDescription = description.trim();
+  const cleanedTitle = title.trim() || inferTitle(cleanedDescription);
   const cleanedCompany = company.trim() || "Custom role";
   const skills = skillsText.split(",").map(skill => skill.trim()).filter(Boolean);
   return {
@@ -22,12 +23,22 @@ function makeJob(title: string, company: string, description: string, skillsText
     experience: null,
     posted_at: null,
     skills,
-    summary: description.trim(),
+    summary: cleanedDescription,
     match_score: 0,
     match_reason: "User pasted this job description for ATS scoring.",
     apply_url: "https://example.com/custom-job-description",
     source: "Pasted job description",
   };
+}
+
+function inferTitle(description: string) {
+  const noise = /(clicked|applicant|posted|promoted|linkedin|indeed|apply now|days? ago|hours? ago|people|followers|reposted)/i;
+  const lines = description
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(line => line.length >= 4 && line.length <= 90 && !noise.test(line));
+  const titleLike = lines.find(line => /(engineer|developer|manager|analyst|designer|consultant|specialist|architect|lead|intern|associate|director|administrator|scientist|tester|qa|sales|marketing|finance|hr|recruiter)/i.test(line));
+  return titleLike || lines[0] || "Custom job role";
 }
 
 export default function CustomAtsPage() {

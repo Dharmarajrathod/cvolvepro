@@ -179,8 +179,24 @@ def job_context(job: JobResult) -> dict:
 STOPWORDS = {
     "about", "above", "after", "against", "also", "and", "are", "based", "but", "can", "for", "from",
     "has", "have", "into", "join", "looking", "more", "our", "role", "that", "the", "their", "this",
-    "to", "using", "with", "work", "you", "your", "will",
+    "to", "using", "with", "work", "you", "your", "will", "job", "description", "pasted", "posted",
+    "days", "hours", "ago", "over", "people", "clicked", "click", "apply", "applicants", "applicant",
+    "views", "viewed", "promoted", "reposted", "linkedin", "indeed", "easy", "company", "full",
+    "time", "remote", "onsite", "hybrid",
 }
+
+NOISE_LINE_PATTERN = re.compile(
+    r"(clicked|applicants?|posted|promoted|reposted|linkedin|indeed|apply now|days?\s+ago|hours?\s+ago|"
+    r"people|followers|be among|see who|save job|show more|show less|seniority level|employment type)",
+    re.I,
+)
+
+ROLE_WORD_PATTERN = re.compile(
+    r"\b(engineer|developer|manager|analyst|designer|consultant|specialist|architect|lead|intern|associate|"
+    r"director|administrator|scientist|tester|qa|sales|marketing|finance|hr|recruiter|devops|frontend|"
+    r"backend|fullstack|data|product|project|program)\b",
+    re.I,
+)
 
 
 def keyword_list(text: str) -> list[str]:
@@ -191,6 +207,27 @@ def keyword_list(text: str) -> list[str]:
         if lowered not in STOPWORDS and lowered not in seen:
             seen[lowered] = word
     return list(seen.values())
+
+
+def clean_job_text(text: str) -> str:
+    lines = []
+    for line in re.split(r"[\r\n]+", text):
+        cleaned = re.sub(r"\s+", " ", line).strip(" -•\t")
+        if not cleaned or NOISE_LINE_PATTERN.search(cleaned):
+            continue
+        lines.append(cleaned)
+    return " ".join(lines) if lines else compact_text(text)
+
+
+def role_label(job: JobResult) -> str:
+    title = job.title.strip()
+    if title and title.lower() not in {"pasted job description", "custom job role", "selected role"}:
+        return title
+    for line in re.split(r"[\r\n.]+", job.summary):
+        cleaned = re.sub(r"\s+", " ", line).strip(" -•\t")
+        if 4 <= len(cleaned) <= 90 and not NOISE_LINE_PATTERN.search(cleaned) and ROLE_WORD_PATTERN.search(cleaned):
+            return cleaned
+    return "this target role"
 
 
 def contains_term(text: str, term: str) -> bool:
@@ -204,8 +241,10 @@ def contains_term(text: str, term: str) -> bool:
 
 def heuristic_ats_score(job: JobResult, resume_text: str) -> int:
     resume_lower = resume_text.lower()
-    title_keywords = keyword_list(job.title)
-    job_keywords = keyword_list(" ".join([job.title, job.summary, " ".join(job.skills)]))
+    cleaned_summary = clean_job_text(job.summary)
+    inferred_role = role_label(job)
+    title_keywords = keyword_list(inferred_role)
+    job_keywords = keyword_list(" ".join([inferred_role, cleaned_summary, " ".join(job.skills)]))
     meaningful_keywords = [keyword for keyword in job_keywords if len(keyword) >= 4][:30]
     skill_keywords = [skill for skill in job.skills if skill and len(skill.strip()) > 1]
 
@@ -240,66 +279,50 @@ def heuristic_ats_score(job: JobResult, resume_text: str) -> int:
 
 def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
     resume_lower = resume_text.lower()
-    job_keywords = keyword_list(" ".join([job.title, job.summary, " ".join(job.skills)]))
+    cleaned_summary = clean_job_text(job.summary)
+    target_role = role_label(job)
+    job_keywords = keyword_list(" ".join([target_role, cleaned_summary, " ".join(job.skills)]))
     skill_keywords = [skill for skill in job.skills if skill and len(skill) > 1]
-    matched_skills = [skill for skill in skill_keywords if skill.lower() in resume_lower]
-    missing_keywords = [keyword for keyword in job_keywords if keyword.lower() not in resume_lower][:8]
+    matched_skills = [skill for skill in skill_keywords if contains_term(resume_lower, skill)]
+    matched_keywords = [keyword for keyword in job_keywords if contains_term(resume_lower, keyword)][:8]
+    missing_keywords = [keyword for keyword in job_keywords if not contains_term(resume_lower, keyword)][:8]
     strengths: list[str] = []
     gaps: list[str] = []
     recommendations: list[str] = []
 
     if matched_skills:
         strengths.append(f"Your resume mentions role-relevant skills: {', '.join(matched_skills[:5])}.")
-    if job.title.split()[0].lower() in resume_lower or "python" in resume_lower and "python" in job.title.lower():
-        strengths.append(f"Your resume has visible alignment with the {job.title} role.")
+    elif matched_keywords:
+        strengths.append(f"Your resume already matches these job terms: {', '.join(matched_keywords[:5])}.")
+    if any(contains_term(resume_lower, keyword) for keyword in keyword_list(target_role)):
+        strengths.append(f"Your resume has visible alignment with {target_role}.")
     if re.search(r"\b(\d+%|\d+\+?\s*(years?|yrs?)|\$\d+|\d+x)\b", resume_text, re.I):
         strengths.append("Your resume includes measurable details, which helps ATS and recruiter screening.")
     if not strengths:
-        strengths.append("Your resume was readable and contained enough text for an ATS comparison.")
+        strengths.append("Your resume was readable, but it does not yet show strong direct overlap with the pasted job description.")
 
     if missing_keywords:
         gaps.append(f"Important job keywords are missing or not obvious: {', '.join(missing_keywords[:5])}.")
     if job.experience and job.experience.lower() not in resume_lower:
         gaps.append(f"The resume does not clearly mirror the requested experience level: {job.experience}.")
     if score < 70:
-        gaps.append("The resume needs stronger direct overlap with the job description before interview scheduling.")
+        gaps.append("The resume needs stronger direct overlap with the pasted job description before interview scheduling.")
     if not re.search(r"\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed)\b", resume_lower):
         gaps.append("Project impact is not explicit enough; add action verbs and outcomes for key work.")
 
     if missing_keywords:
         recommendations.append(f"Add truthful keywords from the role where relevant: {', '.join(missing_keywords[:6])}.")
-    recommendations.append(f"Rewrite 2-3 bullets to directly connect your projects to {job.title} responsibilities.")
+    recommendations.append(f"Rewrite 2-3 bullets to directly connect your projects to {target_role} responsibilities.")
     recommendations.append("Include metrics, scale, tools, and business impact for your strongest projects.")
     if job.skills:
         recommendations.append(f"Create a skills section that clearly lists matching tools such as {', '.join(job.skills[:6])}.")
-    update_keywords = missing_keywords[:4] or job.skills[:4] or [job.title]
-    resume_updates = [
-        {
-            "current_line": "Existing summary or headline does not clearly mirror the target job.",
-            "updated_line": f"Add a headline that names {job.title} and the strongest matching skills.",
-            "reason": "The top of the resume should immediately match the role title and core requirements.",
-        },
-        {
-            "current_line": "Project bullets describe work without enough job-specific keywords.",
-            "updated_line": f"Rewrite one project bullet to include {', '.join(update_keywords[:3])} where truthful.",
-            "reason": "ATS systems and recruiters both look for direct keyword overlap with the job description.",
-        },
-        {
-            "current_line": "Impact is not consistently quantified.",
-            "updated_line": "Add metrics such as users, revenue, latency, accuracy, cost, time saved, or team size.",
-            "reason": "Numbers make experience easier to rank and verify.",
-        },
-        {
-            "current_line": "Skills are spread across the resume or hard to scan.",
-            "updated_line": f"Create a focused skills section for tools and methods relevant to {job.title}.",
-            "reason": "A compact skills section improves both ATS parsing and human review.",
-        },
-    ]
+    update_keywords = missing_keywords[:4] or job.skills[:4] or [target_role]
+    resume_updates = resume_line_updates(resume_text, target_role, update_keywords)
 
     if score >= 70:
-        verdict = f"Your resume is above the interview threshold for {job.title}, but targeted edits can still improve the match."
+        verdict = f"Your resume is above the interview threshold for {target_role}, with enough overlap to begin interview practice."
     else:
-        verdict = f"Your resume currently scores below the 70% interview threshold for {job.title}. Improve keyword overlap, project evidence, and measurable impact before scheduling."
+        verdict = f"Your resume currently scores below the 70% interview threshold for {target_role}. Improve keyword overlap, project evidence, and measurable impact before scheduling."
 
     return {
         "verdict": verdict,
@@ -309,6 +332,41 @@ def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
         "recommendations": recommendations[:4],
         "resume_updates": resume_updates,
     }
+
+
+def resume_line_updates(resume_text: str, target_role: str, keywords: list[str]) -> list[dict]:
+    lines = [
+        re.sub(r"\s+", " ", line).strip(" -•\t")
+        for line in re.split(r"[\r\n]+|(?<=\.)\s+", resume_text)
+    ]
+    useful_lines = [line for line in lines if 25 <= len(line) <= 220]
+    selected = useful_lines[:4]
+    keyword_text = ", ".join(keywords[:3])
+    updates: list[dict] = []
+    for index, line in enumerate(selected):
+        has_metric = bool(re.search(r"\b(\d+%|\d+\+?\s*(years?|yrs?|users?|requests?|projects?|teams?)|\$\d+|\d+x)\b", line, re.I))
+        has_action = bool(re.search(r"\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed|implemented|created|managed)\b", line, re.I))
+        if index == 0:
+            updated = f"{target_role} candidate with hands-on experience in {keyword_text or 'the role requirements'}, backed by project evidence and measurable outcomes."
+            reason = "Your opening line should immediately reflect the pasted job description instead of staying generic."
+        elif not has_metric:
+            updated = f"{line.rstrip('.')} using {keyword_text or 'role-relevant tools'}; add a metric such as users, time saved, accuracy, cost, revenue, or performance improvement."
+            reason = "ATS and recruiters rank bullets higher when responsibilities are tied to measurable impact."
+        elif not has_action:
+            updated = f"Led or delivered {line[0].lower() + line[1:] if len(line) > 1 else line}"
+            reason = "Starting with an ownership verb makes your contribution clearer."
+        else:
+            updated = f"{line.rstrip('.')} and connect it directly to {target_role} requirements such as {keyword_text or 'the key skills from the JD'}."
+            reason = "This keeps the strong evidence while making the job match more explicit."
+        updates.append({"current_line": line, "updated_line": updated, "reason": reason})
+
+    while len(updates) < 4:
+        updates.append({
+            "current_line": "No clear resume line found for this missing requirement.",
+            "updated_line": f"Add a truthful bullet showing experience with {keyword_text or target_role} and the measurable result.",
+            "reason": "The pasted job description asks for this signal, but it is not easy to find in the resume.",
+        })
+    return updates[:4]
 
 
 def fallback_interview_feedback(job: JobResult, answers: list[InterviewAnswer], score: int) -> dict:

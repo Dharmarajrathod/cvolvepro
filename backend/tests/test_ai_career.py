@@ -1,6 +1,6 @@
 import pytest
 
-from app.ai_career import heuristic_ats_score, score_resume
+from app.ai_career import fallback_ats_details, heuristic_ats_score, role_label, score_resume
 from app.config import Settings
 from app.schemas import JobResult
 
@@ -35,6 +35,38 @@ def sample_resume() -> str:
 
 def test_heuristic_ats_score_detects_resume_job_overlap():
     assert heuristic_ats_score(sample_job(), sample_resume()) >= 70
+
+
+def test_fallback_ats_ignores_pasted_job_board_noise():
+    job = JobResult.model_validate({
+        "id": "custom",
+        "title": "Pasted job description",
+        "company": "Custom role",
+        "location": "Not specified",
+        "work_mode": "Not specified",
+        "employment_type": "Not specified",
+        "salary": None,
+        "experience": None,
+        "posted_at": None,
+        "skills": [],
+        "summary": "\n".join([
+            "Frontend Engineer",
+            "Over 100 people clicked apply",
+            "Posted 3 days ago",
+            "We need React, TypeScript, accessibility, API integration, and dashboard performance experience.",
+        ]),
+        "match_score": 0,
+        "match_reason": "Pasted job.",
+        "apply_url": "https://example.com/custom",
+        "source": "Pasted job description",
+    })
+    details = fallback_ats_details(job, sample_resume(), 68)
+    combined = " ".join(details["missing_keywords"] + details["recommendations"])
+    assert role_label(job) == "Frontend Engineer"
+    assert "days" not in combined.lower()
+    assert "clicked" not in combined.lower()
+    assert "pasted job description" not in combined.lower()
+    assert details["resume_updates"][0]["current_line"] in sample_resume()
 
 
 @pytest.mark.asyncio
