@@ -383,6 +383,11 @@ def matched_resume_lines(resume_text: str, terms: list[str], limit: int = 4) -> 
 def technical_interview_questions(job: JobResult, resume_text: str, ats_score: int, ats_summary: str | None = None) -> list[str]:
     target_role = role_label(job)
     cleaned_summary = clean_job_text(job.summary)
+    responsibility_lines = [
+        re.sub(r"\s+", " ", line).strip(" -•\t")
+        for line in re.split(r"[\r\n.]+", cleaned_summary)
+        if 35 <= len(re.sub(r"\s+", " ", line).strip(" -•\t")) <= 180
+    ]
     technical_terms = [
         term for term in [*job.skills, *keyword_list(cleaned_summary)]
         if len(term) >= 3 and term.lower() not in STOPWORDS
@@ -394,19 +399,22 @@ def technical_interview_questions(job: JobResult, resume_text: str, ats_score: i
     resume_lines = matched_resume_lines(resume_text, deduped_terms)
     project_line = resume_lines[0] if resume_lines else "your strongest resume project"
     second_line = resume_lines[1] if len(resume_lines) > 1 else project_line
+    third_line = resume_lines[2] if len(resume_lines) > 2 else second_line
+    responsibility = responsibility_lines[0] if responsibility_lines else f"use {primary} for the work described in the job description"
+    second_responsibility = responsibility_lines[1] if len(responsibility_lines) > 1 else responsibility
     summary_hint = ats_summary or "the ATS review"
 
     return [
-        f"For the {target_role} role, explain how you would use {primary} to solve one responsibility from the job description.",
+        f"The JD says \"{responsibility}\". How would you approach that work using {primary}, and what would you deliver first?",
         f"Your resume says: \"{project_line}\". Walk through the technical architecture, tools, and your exact contribution.",
         f"The job description emphasizes {primary}, {secondary}, and {tertiary}. Which of these is your strongest area, and what production-level example proves it?",
-        f"Describe a technical problem you solved that is closest to this job description. What was the root cause, what options did you compare, and why did you choose your approach?",
+        f"Compare \"{second_responsibility}\" with your resume line \"{second_line}\". What parts already match, and what would you need to learn or adapt?",
         f"If you had to improve or scale the work described in \"{second_line}\", what would you change technically and how would you measure success?",
-        f"What tradeoffs would you consider when implementing {primary} with {secondary} for this role?",
+        f"For a task involving {primary} and {secondary}, what data model, workflow, API, or process would you design for this specific role?",
         f"Pick one missing or weaker ATS area from this review: {summary_hint}. How would you close that gap with a concrete project or learning plan?",
         f"How would you test, debug, or validate a feature or workflow involving {primary} before handing it to users or stakeholders?",
-        f"Tell me about a time you used data, logs, metrics, user feedback, or review comments to improve a technical solution relevant to {target_role}.",
-        f"Imagine you join as {target_role} tomorrow. What technical task from the job description would you tackle first, what steps would you take, and what risks would you watch for?",
+        f"Your resume also says: \"{third_line}\". Which metric, log, user feedback, or review signal would prove this work succeeded in the {target_role} role?",
+        f"On day one as {target_role}, if assigned \"{responsibility}\", what exact technical steps would you take in the first week?",
     ]
 
 

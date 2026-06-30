@@ -45,6 +45,14 @@ function resumeEvidenceLines(ats: AtsResult, terms: string[]) {
   return [...new Set([...matched, ...lines])].slice(0, 4);
 }
 
+function jobResponsibilityLines(ats: AtsResult) {
+  return ats.job.summary
+    .split(/\n+|(?<=\.)\s+/)
+    .map(line => line.replace(/\s+/g, " ").replace(/[•-]/g, "").trim())
+    .filter(line => line.length >= 35 && line.length <= 180 && !/(clicked|posted|days ago|apply now|linkedin|indeed)/i.test(line))
+    .slice(0, 3);
+}
+
 function fallbackQuestions(ats: AtsResult) {
   const role = ats.job.title || "this role";
   const skills = jobSkills(ats);
@@ -52,19 +60,23 @@ function fallbackQuestions(ats: AtsResult) {
   const secondary = skills[1] || "the related tools";
   const tertiary = skills[2] || "the expected workflow";
   const evidence = resumeEvidenceLines(ats, skills);
+  const responsibilities = jobResponsibilityLines(ats);
   const projectLine = evidence[0] || "your strongest resume project";
   const secondLine = evidence[1] || projectLine;
+  const thirdLine = evidence[2] || secondLine;
+  const responsibility = responsibilities[0] || `use ${primary} for the work described in the job description`;
+  const secondResponsibility = responsibilities[1] || responsibility;
   return [
-    `For the ${role} role, explain how you would use ${primary} to solve one responsibility from the job description.`,
+    `The JD says "${responsibility}". How would you approach that work using ${primary}, and what would you deliver first?`,
     `Your resume says: "${projectLine}". Walk through the technical architecture, tools, and your exact contribution.`,
     `The job description emphasizes ${primary}, ${secondary}, and ${tertiary}. Which is your strongest area, and what production-level example proves it?`,
-    `Describe a technical problem you solved that is closest to this job description. What was the root cause, what options did you compare, and why did you choose your approach?`,
+    `Compare "${secondResponsibility}" with your resume line "${secondLine}". What parts already match, and what would you need to learn or adapt?`,
     `If you had to improve or scale the work described in "${secondLine}", what would you change technically and how would you measure success?`,
-    `What tradeoffs would you consider when implementing ${primary} with ${secondary} for this role?`,
+    `For a task involving ${primary} and ${secondary}, what data model, workflow, API, or process would you design for this specific role?`,
     `Pick one weaker ATS area from this review: ${ats.gaps.slice(0, 2).join(" ")} How would you close that gap with a concrete project or learning plan?`,
     `How would you test, debug, or validate a feature or workflow involving ${primary} before handing it to users or stakeholders?`,
-    `Tell me about a time you used data, logs, metrics, user feedback, or review comments to improve a technical solution relevant to ${role}.`,
-    `Imagine you join as ${role} tomorrow. What technical task from the job description would you tackle first, what steps would you take, and what risks would you watch for?`,
+    `Your resume also says: "${thirdLine}". Which metric, log, user feedback, or review signal would prove this work succeeded in the ${role} role?`,
+    `On day one as ${role}, if assigned "${responsibility}", what exact technical steps would you take in the first week?`,
   ];
 }
 

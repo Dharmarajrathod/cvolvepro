@@ -77,6 +77,8 @@ def test_technical_interview_questions_use_job_and_resume_context():
     assert "typescript" in joined
     assert "accessible dashboards" in joined
     assert "tell me about yourself" not in joined
+    assert "technical problem you solved that is closest" not in joined
+    assert "what tradeoffs would you consider" not in joined
 
 
 @pytest.mark.asyncio
