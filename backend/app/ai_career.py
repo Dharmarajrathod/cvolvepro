@@ -239,7 +239,7 @@ def contains_term(text: str, term: str) -> bool:
     return bool(re.search(rf"\b{re.escape(term)}\b", text))
 
 
-def heuristic_ats_score(job: JobResult, resume_text: str) -> int:
+def deterministic_ats_score(job: JobResult, resume_text: str) -> int:
     resume_lower = resume_text.lower()
     cleaned_summary = clean_job_text(job.summary)
     inferred_role = role_label(job)
@@ -275,6 +275,10 @@ def heuristic_ats_score(job: JobResult, resume_text: str) -> int:
             score += 5
 
     return max(0, min(100, score))
+
+
+def heuristic_ats_score(job: JobResult, resume_text: str) -> int:
+    return deterministic_ats_score(job, resume_text)
 
 
 def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
@@ -598,9 +602,7 @@ async def score_resume(settings: Settings, job: JobResult, resume_text: str) -> 
         ATS_SCHEMA,
     )
     data.setdefault("score", 0)
-    model_score = max(0, min(100, int(data.get("score") or 0)))
-    heuristic_score = heuristic_ats_score(job, resume_text)
-    score = heuristic_score if model_score <= 5 and heuristic_score > model_score else model_score
+    score = deterministic_ats_score(job, resume_text)
     fallback = fallback_ats_details(job, resume_text, score)
     data["score"] = score
     if not data.get("verdict") or "did not provide" in str(data.get("verdict")).lower():

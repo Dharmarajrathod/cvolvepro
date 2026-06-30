@@ -114,11 +114,13 @@ def test_different_jobs_get_different_interview_questions():
 
 
 @pytest.mark.asyncio
-async def test_score_resume_replaces_zero_model_score_with_evidence_score(monkeypatch):
+async def test_score_resume_uses_stable_system_score_when_model_score_varies(monkeypatch):
+    model_scores = iter([34, 85])
+
     async def fake_nvidia_json(*_args, **_kwargs):
         return {
-            "score": 0,
-            "verdict": "No fit.",
+            "score": next(model_scores),
+            "verdict": "Model-generated verdict.",
             "strengths": [],
             "gaps": [],
             "missing_keywords": [],
@@ -127,6 +129,8 @@ async def test_score_resume_replaces_zero_model_score_with_evidence_score(monkey
         }
 
     monkeypatch.setattr("app.ai_career.nvidia_json", fake_nvidia_json)
-    result = await score_resume(Settings(nvidia_api_key="test"), sample_job(), sample_resume())
-    assert result.score >= 70
-    assert result.resume_updates
+    first = await score_resume(Settings(nvidia_api_key="test"), sample_job(), sample_resume())
+    second = await score_resume(Settings(nvidia_api_key="test"), sample_job(), sample_resume())
+    assert first.score == second.score
+    assert first.score >= 70
+    assert first.resume_updates
