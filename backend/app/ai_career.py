@@ -198,6 +198,15 @@ ROLE_WORD_PATTERN = re.compile(
     re.I,
 )
 
+KNOWN_SKILLS = [
+    "React", "TypeScript", "JavaScript", "Python", "SQL", "Tableau", "Power BI", "Excel", "Node.js",
+    "FastAPI", "Django", "Flask", "Java", "Spring", "REST API", "GraphQL", "PostgreSQL", "MySQL",
+    "MongoDB", "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform", "CI/CD", "Git",
+    "HTML", "CSS", "Tailwind", "Accessibility", "API integration", "Machine Learning", "Pandas",
+    "NumPy", "Data Analysis", "A/B testing", "Analytics", "Dashboard", "Figma", "CRM", "Salesforce",
+    "SEO", "Content Marketing", "Campaign", "Android", "iOS", "Flutter", "React Native",
+]
+
 
 def keyword_list(text: str) -> list[str]:
     words = re.findall(r"[A-Za-z][A-Za-z0-9+#.]{2,}", text)
@@ -207,6 +216,24 @@ def keyword_list(text: str) -> list[str]:
         if lowered not in STOPWORDS and lowered not in seen:
             seen[lowered] = word
     return list(seen.values())
+
+
+def normalized_tokens(text: str) -> set[str]:
+    tokens = re.findall(r"[a-z][a-z0-9+#.]{2,}", text.lower())
+    values: set[str] = set()
+    for token in tokens:
+        values.add(token)
+        if len(token) > 6:
+            values.add(token[:6])
+        if token.endswith("ies") and len(token) > 4:
+            values.add(token[:-3] + "y")
+        if token.endswith("ing") and len(token) > 5:
+            values.add(token[:-3])
+        if token.endswith("ed") and len(token) > 4:
+            values.add(token[:-2])
+        if token.endswith("s") and len(token) > 3:
+            values.add(token[:-1])
+    return values
 
 
 def clean_job_text(text: str) -> str:
@@ -236,7 +263,33 @@ def contains_term(text: str, term: str) -> bool:
         return False
     if re.search(r"[+#.]", term):
         return term in text
-    return bool(re.search(rf"\b{re.escape(term)}\b", text))
+    if bool(re.search(rf"\b{re.escape(term)}\b", text)):
+        return True
+    if len(normalized_tokens(term) & normalized_tokens(text)) >= 1 and len(re.findall(r"[a-z][a-z0-9+#.]{2,}", term)) == 1:
+        return True
+    term_tokens = normalized_tokens(term)
+    if len(term_tokens) <= 1:
+        return False
+    text_tokens = normalized_tokens(text)
+    return len(term_tokens & text_tokens) / len(term_tokens) >= 0.6
+
+
+def inferred_job_skills(job: JobResult, cleaned_summary: str) -> list[str]:
+    values: list[str] = []
+    combined = " ".join([job.title, cleaned_summary, " ".join(job.skills)])
+    combined_lower = combined.lower()
+    for skill in job.skills:
+        if skill and skill.strip():
+            values.append(skill.strip())
+    for skill in KNOWN_SKILLS:
+        if contains_term(combined_lower, skill):
+            values.append(skill)
+    if values:
+        return list(dict.fromkeys(values))[:14]
+    for keyword in keyword_list(combined):
+        if len(keyword) >= 4 and keyword.lower() not in STOPWORDS:
+            values.append(keyword)
+    return list(dict.fromkeys(values))[:10]
 
 
 def deterministic_ats_score(job: JobResult, resume_text: str) -> int:
@@ -244,30 +297,34 @@ def deterministic_ats_score(job: JobResult, resume_text: str) -> int:
     cleaned_summary = clean_job_text(job.summary)
     inferred_role = role_label(job)
     title_keywords = keyword_list(inferred_role)
-    job_keywords = keyword_list(" ".join([inferred_role, cleaned_summary, " ".join(job.skills)]))
+    inferred_skills = inferred_job_skills(job, cleaned_summary)
+    job_keywords = keyword_list(" ".join([inferred_role, cleaned_summary, " ".join(inferred_skills)]))
     meaningful_keywords = [keyword for keyword in job_keywords if len(keyword) >= 4][:30]
-    skill_keywords = [skill for skill in job.skills if skill and len(skill.strip()) > 1]
+    skill_keywords = [skill for skill in inferred_skills if skill and len(skill.strip()) > 1][:12]
 
-    score = 12 if len(resume_text.strip()) >= 250 else 6
+    score = 5
 
     if skill_keywords:
         matched_skills = [skill for skill in skill_keywords if contains_term(resume_lower, skill)]
         skill_ratio = len(matched_skills) / max(1, len(skill_keywords))
-        score += round(34 * min(1, skill_ratio))
+        score += round(45 * min(1, skill_ratio))
 
     if meaningful_keywords:
         matched_keywords = [keyword for keyword in meaningful_keywords if contains_term(resume_lower, keyword)]
         keyword_ratio = len(matched_keywords) / max(1, len(meaningful_keywords))
-        score += round(28 * min(1, keyword_ratio))
+        score += round(18 * min(1, keyword_ratio))
 
     if title_keywords and any(contains_term(resume_lower, keyword) for keyword in title_keywords):
-        score += 10
+        score += 12
 
     if re.search(r"\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed|implemented|created|managed)\b", resume_lower):
         score += 8
 
     if re.search(r"\b(\d+%|\d+\+?\s*(years?|yrs?|users?|requests?|projects?|teams?)|\$\d+|\d+x)\b", resume_text, re.I):
         score += 8
+
+    if len(resume_text.strip()) >= 250:
+        score += 4
 
     if job.experience:
         experience_numbers = re.findall(r"\d+", job.experience)
@@ -285,8 +342,9 @@ def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
     resume_lower = resume_text.lower()
     cleaned_summary = clean_job_text(job.summary)
     target_role = role_label(job)
-    job_keywords = keyword_list(" ".join([target_role, cleaned_summary, " ".join(job.skills)]))
-    skill_keywords = [skill for skill in job.skills if skill and len(skill) > 1]
+    inferred_skills = inferred_job_skills(job, cleaned_summary)
+    job_keywords = keyword_list(" ".join([target_role, cleaned_summary, " ".join(inferred_skills)]))
+    skill_keywords = [skill for skill in inferred_skills if skill and len(skill) > 1][:12]
     matched_skills = [skill for skill in skill_keywords if contains_term(resume_lower, skill)]
     matched_keywords = [keyword for keyword in job_keywords if contains_term(resume_lower, keyword)][:8]
     missing_keywords = [keyword for keyword in job_keywords if not contains_term(resume_lower, keyword)][:8]
@@ -318,9 +376,9 @@ def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
         recommendations.append(f"Add truthful keywords from the role where relevant: {', '.join(missing_keywords[:6])}.")
     recommendations.append(f"Rewrite 2-3 bullets to directly connect your projects to {target_role} responsibilities.")
     recommendations.append("Include metrics, scale, tools, and business impact for your strongest projects.")
-    if job.skills:
-        recommendations.append(f"Create a skills section that clearly lists matching tools such as {', '.join(job.skills[:6])}.")
-    update_keywords = missing_keywords[:4] or job.skills[:4] or [target_role]
+    if inferred_skills:
+        recommendations.append(f"Create a skills section that clearly lists matching tools such as {', '.join(inferred_skills[:6])}.")
+    update_keywords = missing_keywords[:4] or inferred_skills[:4] or [target_role]
     resume_updates = resume_line_updates(resume_text, target_role, update_keywords)
 
     if score >= 70:

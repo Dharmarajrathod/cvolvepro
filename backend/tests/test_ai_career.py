@@ -69,6 +69,35 @@ def test_fallback_ats_ignores_pasted_job_board_noise():
     assert details["resume_updates"][0]["current_line"] in sample_resume()
 
 
+def test_pasted_job_without_manual_skills_can_score_strong_match():
+    job = JobResult.model_validate({
+        "id": "custom",
+        "title": "Pasted job description",
+        "company": "Custom role",
+        "location": "Not specified",
+        "work_mode": "Not specified",
+        "employment_type": "Not specified",
+        "salary": None,
+        "experience": None,
+        "posted_at": None,
+        "skills": [],
+        "summary": "Frontend Engineer\nWe need React, TypeScript, accessibility, API integration, and dashboard performance experience. Build UI components and integrate REST APIs.",
+        "match_score": 0,
+        "match_reason": "Pasted job.",
+        "apply_url": "https://example.com/custom",
+        "source": "Pasted job description",
+    })
+    assert heuristic_ats_score(job, sample_resume()) >= 85
+
+
+def test_unrelated_resume_stays_low():
+    unrelated = (
+        "Restaurant shift supervisor with inventory planning, staff scheduling, vendor coordination, "
+        "cash reconciliation, customer service, and daily store operations across multiple locations."
+    )
+    assert heuristic_ats_score(sample_job(), unrelated) < 45
+
+
 def test_technical_interview_questions_use_job_and_resume_context():
     questions = technical_interview_questions(sample_job(), sample_resume(), 82, "Strong React and TypeScript fit.")
     joined = " ".join(questions).lower()
