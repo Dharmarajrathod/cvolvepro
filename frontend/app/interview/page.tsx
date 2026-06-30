@@ -28,6 +28,65 @@ declare global {
   }
 }
 
+function jobSkills(ats: AtsResult) {
+  const skills = ats.job.skills?.filter(Boolean) || [];
+  const missing = ats.missing_keywords?.filter(Boolean) || [];
+  return [...skills, ...missing].slice(0, 6);
+}
+
+function fallbackQuestions(ats: AtsResult) {
+  const role = ats.job.title || "this role";
+  const skills = jobSkills(ats);
+  const skillText = skills.length ? skills.join(", ") : "the key requirements in the job description";
+  return [
+    `Walk me through your background and why it fits the ${role} role.`,
+    `Which project from your resume best proves your fit for ${role}, and what was your exact contribution?`,
+    `How have you used ${skillText} in real work or projects?`,
+    "Describe a time you had to learn a new tool or process quickly. What did you do?",
+    "Tell me about a challenge in one of your projects and how you solved it.",
+    "What measurable result or impact are you most proud of from your resume?",
+    `The ATS review found these gaps: ${ats.gaps.slice(0, 2).join(" ")} How would you address them for this job?`,
+    "How do you prioritize tasks when deadlines or requirements change?",
+    `If selected for ${role}, what would you focus on in your first 30 days?`,
+    "Why should the hiring team move you forward to the next round?",
+  ];
+}
+
+function fallbackFeedback(ats: AtsResult, finalAnswers: Answer[]): InterviewFeedback {
+  const answeredText = finalAnswers.map(item => item.answer).join(" ");
+  const hasMetrics = /\b(\d+%|\d+\+?\s*(years?|yrs?|users?|projects?|teams?)|\$\d+|\d+x)\b/i.test(answeredText);
+  const hasAction = /\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed|implemented|created|managed)\b/i.test(answeredText);
+  const averageWords = Math.round(finalAnswers.reduce((sum, item) => sum + item.answer.split(/\s+/).filter(Boolean).length, 0) / Math.max(1, finalAnswers.length));
+  const overall = Math.max(35, Math.min(88, ats.score - 8 + (hasMetrics ? 8 : 0) + (hasAction ? 6 : 0) + (averageWords >= 45 ? 6 : 0)));
+  return {
+    overall_score: overall,
+    hiring_signal: overall >= 75 ? "Strong interview signal" : overall >= 55 ? "Mixed interview signal" : "Needs more preparation",
+    summary: `Your answers were reviewed against ${ats.job.title}. Strengthen them by using specific examples, your direct actions, and measurable results.`,
+    strengths: [
+      finalAnswers.length >= 10 ? "You completed the full interview set." : "You answered part of the interview set.",
+      hasAction ? "Your answers include ownership/action language." : "Your answers give a starting point for role fit.",
+      hasMetrics ? "You included measurable evidence in your answers." : "You can improve quickly by adding measurable evidence.",
+    ],
+    improvements: [
+      averageWords < 45 ? "Several answers are too short; expand them with situation, action, and result." : "Make strong answers sharper by naming tradeoffs and decisions.",
+      "Connect each answer directly to the job description and ATS gaps.",
+      "Mention tools, scale, and business or project impact more clearly.",
+    ],
+    better_answer_guidance: [
+      "Use STAR: situation, task, action, result.",
+      "Open each answer with the direct answer, then give one concrete example.",
+      "Close with a metric, result, or lesson learned.",
+      `For ${ats.job.title}, reference the most important job skills and missing keywords naturally.`,
+    ],
+    question_feedback: finalAnswers.map(item => ({
+      question: item.question,
+      your_answer: item.answer,
+      expected_answer: `A strong answer should directly address the question, connect to ${ats.job.title}, include a specific example, explain your action, and close with a measurable result or learning.`,
+      feedback: item.answer.split(/\s+/).filter(Boolean).length < 45 ? "Add more detail, tools used, and measurable impact." : "Good foundation; make the result and job connection more explicit.",
+    })),
+  };
+}
+
 export default function InterviewPage() {
   const [ats, setAts] = useState<AtsResult | null>(null);
   const [questions, setQuestions] = useState<string[]>([]);
@@ -93,7 +152,8 @@ export default function InterviewPage() {
       if (typeof body.credits_remaining === "number") updateAuthUserCredits(body.credits_remaining);
       setQuestions(body.questions);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Interview questions could not be generated.");
+      setQuestions(fallbackQuestions(parsed));
+      setError("Live AI questions could not be reached, so a role-based interview was generated from your ATS result.");
     } finally {
       setLoading(false);
     }
@@ -214,7 +274,8 @@ export default function InterviewPage() {
       if (!response.ok) throw new Error(body.detail || "Interview feedback could not be generated.");
       setFeedback(body);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Interview feedback could not be generated.");
+      setFeedback(fallbackFeedback(ats, finalAnswers));
+      setError("Live AI feedback could not be reached, so feedback was generated from your answers and ATS result.");
     } finally {
       setSubmitting(false);
     }
