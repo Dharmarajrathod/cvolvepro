@@ -179,7 +179,7 @@ def job_context(job: JobResult) -> dict:
 STOPWORDS = {
     "about", "above", "after", "against", "also", "and", "are", "based", "but", "can", "for", "from",
     "has", "have", "into", "join", "looking", "more", "our", "role", "that", "the", "their", "this",
-    "to", "using", "with", "work", "you", "your",
+    "to", "using", "with", "work", "you", "your", "will",
 }
 
 
@@ -191,6 +191,51 @@ def keyword_list(text: str) -> list[str]:
         if lowered not in STOPWORDS and lowered not in seen:
             seen[lowered] = word
     return list(seen.values())
+
+
+def contains_term(text: str, term: str) -> bool:
+    term = term.strip().lower()
+    if not term:
+        return False
+    if re.search(r"[+#.]", term):
+        return term in text
+    return bool(re.search(rf"\b{re.escape(term)}\b", text))
+
+
+def heuristic_ats_score(job: JobResult, resume_text: str) -> int:
+    resume_lower = resume_text.lower()
+    title_keywords = keyword_list(job.title)
+    job_keywords = keyword_list(" ".join([job.title, job.summary, " ".join(job.skills)]))
+    meaningful_keywords = [keyword for keyword in job_keywords if len(keyword) >= 4][:30]
+    skill_keywords = [skill for skill in job.skills if skill and len(skill.strip()) > 1]
+
+    score = 12 if len(resume_text.strip()) >= 250 else 6
+
+    if skill_keywords:
+        matched_skills = [skill for skill in skill_keywords if contains_term(resume_lower, skill)]
+        skill_ratio = len(matched_skills) / max(1, len(skill_keywords))
+        score += round(34 * min(1, skill_ratio))
+
+    if meaningful_keywords:
+        matched_keywords = [keyword for keyword in meaningful_keywords if contains_term(resume_lower, keyword)]
+        keyword_ratio = len(matched_keywords) / max(1, len(meaningful_keywords))
+        score += round(28 * min(1, keyword_ratio))
+
+    if title_keywords and any(contains_term(resume_lower, keyword) for keyword in title_keywords):
+        score += 10
+
+    if re.search(r"\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed|implemented|created|managed)\b", resume_lower):
+        score += 8
+
+    if re.search(r"\b(\d+%|\d+\+?\s*(years?|yrs?|users?|requests?|projects?|teams?)|\$\d+|\d+x)\b", resume_text, re.I):
+        score += 8
+
+    if job.experience:
+        experience_numbers = re.findall(r"\d+", job.experience)
+        if not experience_numbers or any(number in resume_lower for number in experience_numbers):
+            score += 5
+
+    return max(0, min(100, score))
 
 
 def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
@@ -388,7 +433,9 @@ async def score_resume(settings: Settings, job: JobResult, resume_text: str) -> 
         ATS_SCHEMA,
     )
     data.setdefault("score", 0)
-    score = max(0, min(100, int(data.get("score") or 0)))
+    model_score = max(0, min(100, int(data.get("score") or 0)))
+    heuristic_score = heuristic_ats_score(job, resume_text)
+    score = heuristic_score if model_score <= 5 and heuristic_score > model_score else model_score
     fallback = fallback_ats_details(job, resume_text, score)
     data["score"] = score
     if not data.get("verdict") or "did not provide" in str(data.get("verdict")).lower():
