@@ -369,6 +369,47 @@ def resume_line_updates(resume_text: str, target_role: str, keywords: list[str])
     return updates[:4]
 
 
+def matched_resume_lines(resume_text: str, terms: list[str], limit: int = 4) -> list[str]:
+    lines = [
+        re.sub(r"\s+", " ", line).strip(" -•\t")
+        for line in re.split(r"[\r\n]+|(?<=\.)\s+", resume_text)
+    ]
+    useful_lines = [line for line in lines if 25 <= len(line) <= 220]
+    matches = [line for line in useful_lines if any(contains_term(line.lower(), term) for term in terms)]
+    combined = list(dict.fromkeys([*matches, *useful_lines]))
+    return combined[:limit]
+
+
+def technical_interview_questions(job: JobResult, resume_text: str, ats_score: int, ats_summary: str | None = None) -> list[str]:
+    target_role = role_label(job)
+    cleaned_summary = clean_job_text(job.summary)
+    technical_terms = [
+        term for term in [*job.skills, *keyword_list(cleaned_summary)]
+        if len(term) >= 3 and term.lower() not in STOPWORDS
+    ]
+    deduped_terms = list(dict.fromkeys(technical_terms))[:10]
+    primary = deduped_terms[0] if deduped_terms else "the main technical requirement"
+    secondary = deduped_terms[1] if len(deduped_terms) > 1 else "the related tools"
+    tertiary = deduped_terms[2] if len(deduped_terms) > 2 else "the expected workflow"
+    resume_lines = matched_resume_lines(resume_text, deduped_terms)
+    project_line = resume_lines[0] if resume_lines else "your strongest resume project"
+    second_line = resume_lines[1] if len(resume_lines) > 1 else project_line
+    summary_hint = ats_summary or "the ATS review"
+
+    return [
+        f"For the {target_role} role, explain how you would use {primary} to solve one responsibility from the job description.",
+        f"Your resume says: \"{project_line}\". Walk through the technical architecture, tools, and your exact contribution.",
+        f"The job description emphasizes {primary}, {secondary}, and {tertiary}. Which of these is your strongest area, and what production-level example proves it?",
+        f"Describe a technical problem you solved that is closest to this job description. What was the root cause, what options did you compare, and why did you choose your approach?",
+        f"If you had to improve or scale the work described in \"{second_line}\", what would you change technically and how would you measure success?",
+        f"What tradeoffs would you consider when implementing {primary} with {secondary} for this role?",
+        f"Pick one missing or weaker ATS area from this review: {summary_hint}. How would you close that gap with a concrete project or learning plan?",
+        f"How would you test, debug, or validate a feature or workflow involving {primary} before handing it to users or stakeholders?",
+        f"Tell me about a time you used data, logs, metrics, user feedback, or review comments to improve a technical solution relevant to {target_role}.",
+        f"Imagine you join as {target_role} tomorrow. What technical task from the job description would you tackle first, what steps would you take, and what risks would you watch for?",
+    ]
+
+
 def fallback_interview_feedback(job: JobResult, answers: list[InterviewAnswer], score: int) -> dict:
     answer_text = " ".join(answer.answer for answer in answers)
     answer_lower = answer_text.lower()
@@ -519,8 +560,11 @@ async def generate_questions(settings: Settings, job: JobResult, resume_text: st
         QUESTIONS_SCHEMA,
     )
     questions = [str(question) for question in data.get("questions", []) if question]
+    generic_markers = ("tell me about yourself", "why should", "strengths and weaknesses", "where do you see yourself")
+    if len(questions) < 10 or any(any(marker in question.lower() for marker in generic_markers) for question in questions[:3]):
+        questions = technical_interview_questions(job, resume_text, ats_score, ats_summary)
     while len(questions) < 10:
-        questions.append(f"Tell me about a project or experience that proves your fit for {job.title}.")
+        questions.append(f"Explain a technical project or experience that proves your fit for {role_label(job)}.")
     data["questions"] = questions[:10]
     return InterviewStartResponse(**data)
 

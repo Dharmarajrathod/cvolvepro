@@ -1,6 +1,6 @@
 import pytest
 
-from app.ai_career import fallback_ats_details, heuristic_ats_score, role_label, score_resume
+from app.ai_career import fallback_ats_details, heuristic_ats_score, role_label, score_resume, technical_interview_questions
 from app.config import Settings
 from app.schemas import JobResult
 
@@ -67,6 +67,16 @@ def test_fallback_ats_ignores_pasted_job_board_noise():
     assert "clicked" not in combined.lower()
     assert "pasted job description" not in combined.lower()
     assert details["resume_updates"][0]["current_line"] in sample_resume()
+
+
+def test_technical_interview_questions_use_job_and_resume_context():
+    questions = technical_interview_questions(sample_job(), sample_resume(), 82, "Strong React and TypeScript fit.")
+    joined = " ".join(questions).lower()
+    assert len(questions) == 10
+    assert "react" in joined
+    assert "typescript" in joined
+    assert "accessible dashboards" in joined
+    assert "tell me about yourself" not in joined
 
 
 @pytest.mark.asyncio

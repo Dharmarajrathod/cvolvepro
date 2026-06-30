@@ -31,24 +31,40 @@ declare global {
 function jobSkills(ats: AtsResult) {
   const skills = ats.job.skills?.filter(Boolean) || [];
   const missing = ats.missing_keywords?.filter(Boolean) || [];
-  return [...skills, ...missing].slice(0, 6);
+  const summaryTerms = (ats.job.summary.match(/[A-Za-z][A-Za-z0-9+#.]{2,}/g) || [])
+    .filter(term => !/^(the|and|for|with|you|your|job|role|work|this|that|will|have|from)$/i.test(term));
+  return [...new Set([...skills, ...missing, ...summaryTerms])].slice(0, 10);
+}
+
+function resumeEvidenceLines(ats: AtsResult, terms: string[]) {
+  const lines = ats.resume_text
+    .split(/\n+|(?<=\.)\s+/)
+    .map(line => line.replace(/\s+/g, " ").trim())
+    .filter(line => line.length >= 25 && line.length <= 220);
+  const matched = lines.filter(line => terms.some(term => line.toLowerCase().includes(term.toLowerCase())));
+  return [...new Set([...matched, ...lines])].slice(0, 4);
 }
 
 function fallbackQuestions(ats: AtsResult) {
   const role = ats.job.title || "this role";
   const skills = jobSkills(ats);
-  const skillText = skills.length ? skills.join(", ") : "the key requirements in the job description";
+  const primary = skills[0] || "the main technical requirement";
+  const secondary = skills[1] || "the related tools";
+  const tertiary = skills[2] || "the expected workflow";
+  const evidence = resumeEvidenceLines(ats, skills);
+  const projectLine = evidence[0] || "your strongest resume project";
+  const secondLine = evidence[1] || projectLine;
   return [
-    `Walk me through your background and why it fits the ${role} role.`,
-    `Which project from your resume best proves your fit for ${role}, and what was your exact contribution?`,
-    `How have you used ${skillText} in real work or projects?`,
-    "Describe a time you had to learn a new tool or process quickly. What did you do?",
-    "Tell me about a challenge in one of your projects and how you solved it.",
-    "What measurable result or impact are you most proud of from your resume?",
-    `The ATS review found these gaps: ${ats.gaps.slice(0, 2).join(" ")} How would you address them for this job?`,
-    "How do you prioritize tasks when deadlines or requirements change?",
-    `If selected for ${role}, what would you focus on in your first 30 days?`,
-    "Why should the hiring team move you forward to the next round?",
+    `For the ${role} role, explain how you would use ${primary} to solve one responsibility from the job description.`,
+    `Your resume says: "${projectLine}". Walk through the technical architecture, tools, and your exact contribution.`,
+    `The job description emphasizes ${primary}, ${secondary}, and ${tertiary}. Which is your strongest area, and what production-level example proves it?`,
+    `Describe a technical problem you solved that is closest to this job description. What was the root cause, what options did you compare, and why did you choose your approach?`,
+    `If you had to improve or scale the work described in "${secondLine}", what would you change technically and how would you measure success?`,
+    `What tradeoffs would you consider when implementing ${primary} with ${secondary} for this role?`,
+    `Pick one weaker ATS area from this review: ${ats.gaps.slice(0, 2).join(" ")} How would you close that gap with a concrete project or learning plan?`,
+    `How would you test, debug, or validate a feature or workflow involving ${primary} before handing it to users or stakeholders?`,
+    `Tell me about a time you used data, logs, metrics, user feedback, or review comments to improve a technical solution relevant to ${role}.`,
+    `Imagine you join as ${role} tomorrow. What technical task from the job description would you tackle first, what steps would you take, and what risks would you watch for?`,
   ];
 }
 
