@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, LayoutDashboard, LogOut, Search, Settings } from "lucide-react";
+import { Check, FileText, LayoutDashboard, LogOut, Search, Settings } from "lucide-react";
 import { AuthUser, clearAuthUser, readAuthUser } from "./shared";
 
 type Props = {
@@ -44,6 +44,7 @@ export default function ProfileMenu({ showCredits = false }: Props) {
       <strong>{user.name}</strong>
       <span>{user.email}</span>
       <button onClick={() => router.push("/jobs")}><Search size={15}/>Jobs</button>
+      <button onClick={() => router.push("/custom-ats")}><FileText size={15}/>Paste JD ATS</button>
       <button onClick={() => router.push("/plans")}><Check size={15}/>Choose plan</button>
       <button onClick={() => router.push("/dashboard")}><LayoutDashboard size={15}/>Dashboard</button>
       <button onClick={() => router.push("/settings")}><Settings size={15}/>Settings</button>

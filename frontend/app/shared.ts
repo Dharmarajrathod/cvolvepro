@@ -23,9 +23,16 @@ export type AtsResult = {
   gaps: string[];
   missing_keywords: string[];
   recommendations: string[];
+  resume_updates?: ResumeUpdate[];
   resume_text: string;
   job: Job;
   credits_remaining?: number;
+};
+
+export type ResumeUpdate = {
+  current_line: string;
+  updated_line: string;
+  reason: string;
 };
 
 export type InterviewFeedback = {
@@ -35,6 +42,14 @@ export type InterviewFeedback = {
   strengths: string[];
   improvements: string[];
   better_answer_guidance: string[];
+  question_feedback?: QuestionFeedback[];
+};
+
+export type QuestionFeedback = {
+  question: string;
+  your_answer: string;
+  expected_answer: string;
+  feedback: string;
 };
 
 export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, CheckCircle2, ExternalLink, FileUp, Loader2, MapPin, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, CheckCircle2, ExternalLink, FileText, FileUp, Loader2, MapPin, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
 import { API, AtsResult, Job, readAuthUser, readStoredJob, saveAtsHistory, updateAuthUserCredits } from "../shared";
 import ProfileMenu from "../ProfileMenu";
 
@@ -85,11 +85,11 @@ export default function AtsPage() {
   }
 
   if (!job) {
-    return <main className="flow-page shell"><nav className="flow-nav"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><ProfileMenu showCredits/></nav><section className="flow-empty"><TriangleAlert/><h1>Select a role first</h1><p>Search jobs, choose a role, then check your ATS score from the role card.</p></section></main>;
+    return <main className="flow-page shell"><nav className="flow-nav"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><ProfileMenu showCredits/></nav><section className="flow-empty"><TriangleAlert/><h1>Select a role first</h1><p>Search jobs, choose a role, then check your ATS score from the role card.</p><Link className="secondary-action" href="/custom-ats"><FileText size={16}/>Paste a job description</Link></section></main>;
   }
 
   return <main className="flow-page shell">
-    <nav className="flow-nav"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><ProfileMenu showCredits/></nav>
+    <nav className="flow-nav"><Link className="back-link" href="/jobs"><ArrowLeft size={16}/>Back to jobs</Link><Link className="back-link" href="/custom-ats"><FileText size={16}/>Paste job description</Link><ProfileMenu showCredits/></nav>
     <section className="flow-hero">
       <div>
         <span className="kicker">ATS READINESS</span>
@@ -130,6 +130,7 @@ export default function AtsPage() {
           </div>
           <div className="keyword-row">{result.missing_keywords.map(item=><span key={item}>{item}</span>)}</div>
           <section className="recommendations"><h3>Recommended edits</h3>{result.recommendations.map(item=><p key={item}>{item}</p>)}</section>
+          {Boolean(result.resume_updates?.length) && <section className="resume-update-panel"><h3>Line by line resume adaptation</h3><div className="responsive-table"><table><thead><tr><th>Current resume line</th><th>Update to this</th><th>Why</th></tr></thead><tbody>{result.resume_updates?.map((item, index)=><tr key={`${item.current_line}-${index}`}><td>{item.current_line}</td><td>{item.updated_line}</td><td>{item.reason}</td></tr>)}</tbody></table></div></section>}
           {result.score >= 70 ? <button className="primary-action interview-cta" onClick={scheduleInterview}>Schedule Interview now <ArrowRight size={18}/></button> : <div className="threshold-note">Reach 70% or above to unlock the interview scheduler for this role.</div>}
         </div>}
       </div>

@@ -101,7 +101,8 @@ export default function LandingPage() {
           {profileOpen && <div className="profile-menu">
             <strong>{user.name}</strong>
             <span>{user.email}</span>
-            <button onClick={()=>router.push("/jobs")}><Sparkles size={15}/>Jobs</button>
+          <button onClick={()=>router.push("/jobs")}><Sparkles size={15}/>Jobs</button>
+          <button onClick={()=>router.push("/custom-ats")}><FileText size={15}/>Paste JD ATS</button>
             <button onClick={()=>router.push("/plans")}><Check size={15}/>Choose plan</button>
             <button onClick={()=>router.push("/dashboard")}><LayoutDashboard size={15}/>Dashboard</button>
             <button onClick={()=>router.push("/settings")}><Settings size={15}/>Settings</button>
@@ -118,7 +119,7 @@ export default function LandingPage() {
         <p>CvolvePro helps you search relevant jobs, compare your resume with each role, and generate mock interview questions so you can apply with more clarity.</p>
         <div className="hero-actions">
           <button className="hero-primary" onClick={()=>user ? router.push("/jobs") : openAuth("register")}>{user ? "Go to jobs" : "Try free"} <ArrowRight size={18}/></button>
-          <button className="hero-secondary" onClick={()=>user ? router.push("/plans") : openAuth("login")}>{user ? "Choose plan" : "Login"}</button>
+          <button className="hero-secondary" onClick={()=>user ? router.push("/custom-ats") : openAuth("login")}>{user ? "Paste job description" : "Login"}</button>
         </div>
         <div className="hero-metrics">
           <span><Star size={15}/>4.8/5 avg. user rating</span>

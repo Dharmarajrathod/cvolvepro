@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Camera, CheckCircle2, ClipboardCheck, Loader2, Mic, MicOff, MessageSquareText, RotateCcw, Sparkles, Square, Trophy, Volume2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, CheckCircle2, ClipboardCheck, Loader2, Mic, MicOff, MessageSquareText, RotateCcw, Sparkles, Square, Table2, Trophy, Volume2 } from "lucide-react";
 import { API, AtsResult, InterviewFeedback, readAuthUser, updateAuthUserCredits } from "../shared";
 import ProfileMenu from "../ProfileMenu";
 
@@ -272,6 +272,7 @@ export default function InterviewPage() {
         <section><h3>Improve next</h3>{feedback.improvements.map(item=><p key={item}>{item}</p>)}</section>
       </div>
       <section className="recommendations"><h3>Better answer guidance</h3>{feedback.better_answer_guidance.map(item=><p key={item}>{item}</p>)}</section>
+      {Boolean(feedback.question_feedback?.length) && <section className="question-feedback-panel"><h3><Table2 size={15}/>Question by question review</h3><div className="responsive-table"><table><thead><tr><th>Question</th><th>Your answer</th><th>Expected answer</th><th>Feedback</th></tr></thead><tbody>{feedback.question_feedback?.map((item, index)=><tr key={`${item.question}-${index}`}><td>{item.question}</td><td>{item.your_answer}</td><td>{item.expected_answer}</td><td>{item.feedback}</td></tr>)}</tbody></table></div></section>}
       <Link className="secondary-action" href="/">Back to job search</Link>
     </section>}
   </main>;

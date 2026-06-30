@@ -127,6 +127,17 @@ class ResetPasswordRequest(BaseModel):
     def clean_reset_email(cls, value: str):
         return value.strip().lower()
 
+class ResumeUpdate(BaseModel):
+    current_line: str
+    updated_line: str
+    reason: str
+
+class QuestionFeedback(BaseModel):
+    question: str
+    your_answer: str
+    expected_answer: str
+    feedback: str
+
 class AtsScoreResponse(BaseModel):
     score: int = Field(ge=0, le=100)
     verdict: str
@@ -134,6 +145,7 @@ class AtsScoreResponse(BaseModel):
     gaps: list[str] = Field(default_factory=list)
     missing_keywords: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
+    resume_updates: list[ResumeUpdate] = Field(default_factory=list)
     resume_text: str
     job: JobResult
 
@@ -163,3 +175,4 @@ class InterviewFeedbackResponse(BaseModel):
     strengths: list[str] = Field(default_factory=list)
     improvements: list[str] = Field(default_factory=list)
     better_answer_guidance: list[str] = Field(default_factory=list)
+    question_feedback: list[QuestionFeedback] = Field(default_factory=list)

@@ -29,8 +29,23 @@ ATS_SCHEMA = {
         "gaps": {"type": "array", "items": {"type": "string"}},
         "missing_keywords": {"type": "array", "items": {"type": "string"}},
         "recommendations": {"type": "array", "items": {"type": "string"}},
+        "resume_updates": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "current_line": {"type": "string"},
+                    "updated_line": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["current_line", "updated_line", "reason"],
+            },
+        },
     },
-    "required": ["score", "verdict", "strengths", "gaps", "missing_keywords", "recommendations"],
+    "required": ["score", "verdict", "strengths", "gaps", "missing_keywords", "recommendations", "resume_updates"],
 }
 
 QUESTIONS_SCHEMA = {
@@ -52,8 +67,24 @@ FEEDBACK_SCHEMA = {
         "strengths": {"type": "array", "items": {"type": "string"}},
         "improvements": {"type": "array", "items": {"type": "string"}},
         "better_answer_guidance": {"type": "array", "items": {"type": "string"}},
+        "question_feedback": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "question": {"type": "string"},
+                    "your_answer": {"type": "string"},
+                    "expected_answer": {"type": "string"},
+                    "feedback": {"type": "string"},
+                },
+                "required": ["question", "your_answer", "expected_answer", "feedback"],
+            },
+        },
     },
-    "required": ["overall_score", "hiring_signal", "summary", "strengths", "improvements", "better_answer_guidance"],
+    "required": ["overall_score", "hiring_signal", "summary", "strengths", "improvements", "better_answer_guidance", "question_feedback"],
 }
 
 
@@ -196,6 +227,29 @@ def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
     recommendations.append("Include metrics, scale, tools, and business impact for your strongest projects.")
     if job.skills:
         recommendations.append(f"Create a skills section that clearly lists matching tools such as {', '.join(job.skills[:6])}.")
+    update_keywords = missing_keywords[:4] or job.skills[:4] or [job.title]
+    resume_updates = [
+        {
+            "current_line": "Existing summary or headline does not clearly mirror the target job.",
+            "updated_line": f"Add a headline that names {job.title} and the strongest matching skills.",
+            "reason": "The top of the resume should immediately match the role title and core requirements.",
+        },
+        {
+            "current_line": "Project bullets describe work without enough job-specific keywords.",
+            "updated_line": f"Rewrite one project bullet to include {', '.join(update_keywords[:3])} where truthful.",
+            "reason": "ATS systems and recruiters both look for direct keyword overlap with the job description.",
+        },
+        {
+            "current_line": "Impact is not consistently quantified.",
+            "updated_line": "Add metrics such as users, revenue, latency, accuracy, cost, time saved, or team size.",
+            "reason": "Numbers make experience easier to rank and verify.",
+        },
+        {
+            "current_line": "Skills are spread across the resume or hard to scan.",
+            "updated_line": f"Create a focused skills section for tools and methods relevant to {job.title}.",
+            "reason": "A compact skills section improves both ATS parsing and human review.",
+        },
+    ]
 
     if score >= 70:
         verdict = f"Your resume is above the interview threshold for {job.title}, but targeted edits can still improve the match."
@@ -208,6 +262,7 @@ def fallback_ats_details(job: JobResult, resume_text: str, score: int) -> dict:
         "gaps": gaps[:4],
         "missing_keywords": missing_keywords[:8],
         "recommendations": recommendations[:4],
+        "resume_updates": resume_updates,
     }
 
 
@@ -250,6 +305,19 @@ def fallback_interview_feedback(job: JobResult, answers: list[InterviewAnswer], 
     guidance.append(f"For {job.title}, connect each answer directly to the job responsibilities and required skills.")
     guidance.append("When discussing projects, name the tools used, the scale of the system, and your personal contribution.")
     guidance.append("End technical answers with what you would improve next or how you validated the solution.")
+    question_feedback = [
+        {
+            "question": answer.question,
+            "your_answer": answer.answer,
+            "expected_answer": (
+                f"A strong answer should directly address the question, connect to {job.title}, "
+                "include a specific example, explain your personal actions, mention relevant tools or skills, "
+                "and close with a measurable result or lesson learned."
+            ),
+            "feedback": "Add more role-specific evidence, structure, and measurable impact." if len(answer.answer.split()) < 50 else "Good base answer; sharpen it with clearer outcomes and tradeoffs.",
+        }
+        for answer in answers[:10]
+    ]
 
     if score >= 75:
         signal = "Strong interview signal"
@@ -267,13 +335,50 @@ def fallback_interview_feedback(job: JobResult, answers: list[InterviewAnswer], 
         "strengths": strengths[:4],
         "improvements": improvements[:4],
         "better_answer_guidance": guidance[:4],
+        "question_feedback": question_feedback,
     }
+
+
+def normalize_resume_updates(values: object, fallback: list[dict]) -> list[dict]:
+    rows: list[dict] = []
+    if isinstance(values, list):
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            current_line = str(value.get("current_line") or "").strip()
+            updated_line = str(value.get("updated_line") or "").strip()
+            reason = str(value.get("reason") or "").strip()
+            if current_line and updated_line and reason:
+                rows.append({"current_line": current_line, "updated_line": updated_line, "reason": reason})
+    return rows[:8] or fallback
+
+
+def normalize_question_feedback(values: object, answers: list[InterviewAnswer], fallback: list[dict]) -> list[dict]:
+    rows: list[dict] = []
+    if isinstance(values, list):
+        for index, value in enumerate(values[:10]):
+            if not isinstance(value, dict):
+                continue
+            answer = answers[index] if index < len(answers) else None
+            question = str(value.get("question") or answer.question if answer else "").strip()
+            your_answer = str(value.get("your_answer") or answer.answer if answer else "").strip()
+            expected_answer = str(value.get("expected_answer") or "").strip()
+            feedback = str(value.get("feedback") or "").strip()
+            if question and your_answer and expected_answer and feedback:
+                rows.append({
+                    "question": question,
+                    "your_answer": your_answer,
+                    "expected_answer": expected_answer,
+                    "feedback": feedback,
+                })
+    return rows[:10] or fallback
 
 
 async def score_resume(settings: Settings, job: JobResult, resume_text: str) -> AtsScoreResponse:
     system = (
         "You are an ATS and recruiter calibration engine. Score the resume against the job with strict evidence. "
         "Consider required skills, role seniority, domain fit, project/experience relevance, keywords, measurable impact, and gaps. "
+        "For resume_updates, provide line-by-line resume adaptation guidance: quote or summarize the current weak line, provide a stronger replacement line, and explain why. "
         "Do not reward generic claims. Return only JSON matching the schema."
     )
     data = await nvidia_json(
@@ -288,10 +393,11 @@ async def score_resume(settings: Settings, job: JobResult, resume_text: str) -> 
     data["score"] = score
     if not data.get("verdict") or "did not provide" in str(data.get("verdict")).lower():
         data["verdict"] = fallback["verdict"]
-    for field in ("strengths", "gaps", "missing_keywords", "recommendations"):
+    for field in ("strengths", "gaps", "missing_keywords", "recommendations", "resume_updates"):
         values = data.get(field)
         if not isinstance(values, list) or not [value for value in values if value]:
             data[field] = fallback[field]
+    data["resume_updates"] = normalize_resume_updates(data.get("resume_updates"), fallback["resume_updates"])
     return AtsScoreResponse(job=job, resume_text=resume_text, **data)
 
 
@@ -318,6 +424,7 @@ async def grade_interview(settings: Settings, job: JobResult, resume_text: str, 
     system = (
         "You are an interview coach and hiring panel reviewer. Evaluate the candidate's answers for correctness, depth, clarity, "
         "relevance to the job, evidence from projects, communication, and improvement areas. Give practical guidance for better answers. "
+        "For question_feedback, return one row for every submitted question with the user's answer, the expected answer, and concise feedback. "
         "Return only JSON matching the schema."
     )
     data = await nvidia_json(
@@ -335,8 +442,9 @@ async def grade_interview(settings: Settings, job: JobResult, resume_text: str, 
         data["hiring_signal"] = fallback["hiring_signal"]
     if not data.get("summary") or "did not provide" in str(data.get("summary")).lower():
         data["summary"] = fallback["summary"]
-    for field in ("strengths", "improvements", "better_answer_guidance"):
+    for field in ("strengths", "improvements", "better_answer_guidance", "question_feedback"):
         values = data.get(field)
         if not isinstance(values, list) or not [value for value in values if value]:
             data[field] = fallback[field]
+    data["question_feedback"] = normalize_question_feedback(data.get("question_feedback"), answers, fallback["question_feedback"])
     return InterviewFeedbackResponse(**data)

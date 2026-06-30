@@ -185,7 +185,7 @@ export default function Home() {
   return <main>
     <nav className="nav shell">
       <a className="brand logo-brand" href="/jobs"><img src="/images/cvolvepro-logo.png" alt="Cvolve Pro"/></a>
-      <div className="nav-links"><a className="active" href="#search">Find jobs</a><a href="#how">How it works</a><a href="#saved">Saved <em>{saved.size}</em></a></div>
+      <div className="nav-links"><a className="active" href="#search">Find jobs</a><button className="nav-link-button" onClick={()=>router.push("/custom-ats")}>Paste JD ATS</button><a href="#how">How it works</a><a href="#saved">Saved <em>{saved.size}</em></a></div>
       {!user && <div className="auth-actions"><button onClick={()=>{sessionStorage.setItem("cvolvepro:authRedirect", "/jobs"); sessionStorage.setItem("cvolvepro:authMode", "login"); router.push("/auth");}}><LogIn size={15}/>Login</button><button className="strong" onClick={()=>{sessionStorage.setItem("cvolvepro:authRedirect", "/jobs"); sessionStorage.setItem("cvolvepro:authMode", "register"); router.push("/auth");}}><UserPlus size={15}/>Register</button></div>}
       {user && <div className="profile-wrap">
         <div className="credit-pill">{credits} credits</div>
