@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Bookmark, BriefcaseBusiness, Check, ChevronDown, Clock3, ExternalLink, FileCheck2, LayoutDashboard, LocateFixed, LogIn, LogOut, MapPin, Search, Settings, SlidersHorizontal, Sparkles, UserPlus, X } from "lucide-react";
-import { AuthUser, clearAuthUser, readAuthUser, updateAuthUserCredits } from "../shared";
+import { API, AuthUser, clearAuthUser, readAuthUser, updateAuthUserCredits } from "../shared";
 
 type Job = {
   id: string; title: string; company: string; location: string; work_mode: string;
@@ -14,7 +14,6 @@ type Job = {
 };
 type Result = { jobs: Job[]; total: number; searched_sources: string[]; query_expansion: string[] };
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const PAGE_SIZE = 15;
 const EMPLOYMENT_OPTIONS = [
   ["full-time", "Full-time"],

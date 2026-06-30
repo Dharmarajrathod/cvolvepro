@@ -52,7 +52,16 @@ export type QuestionFeedback = {
   feedback: string;
 };
 
-export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const configuredApi = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, "");
+
+function defaultApiUrl() {
+  if (typeof window === "undefined") return "http://localhost:8000";
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return "http://localhost:8000";
+  return "";
+}
+
+export const API = configuredApi || defaultApiUrl();
 export const AUTH_KEY = "cvolvepro:user";
 export const ATS_HISTORY_KEY = "cvolvepro:atsHistory";
 

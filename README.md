@@ -26,6 +26,6 @@ For PostgreSQL, set `DATABASE_URL=postgresql+asyncpg://user:pass@host/db`. Searc
 
 ## Production
 
-Build with `docker compose up --build`, or deploy `frontend` to Vercel and `backend` to Railway/Render. Set `NEXT_PUBLIC_API_URL` to the public backend URL and set `ALLOWED_ORIGINS` to the deployed frontend origins, for example `https://cvolvepro.com,https://www.cvolvepro.com`.
+Build with `docker compose up --build`, or deploy `frontend` to Vercel/Render and `backend` to Railway/Render. For production, set `BACKEND_URL` or `NEXT_PUBLIC_API_URL` on the frontend service to the public backend URL, and set `ALLOWED_ORIGINS` on the backend to the deployed frontend origins, for example `https://cvolvepro.com,https://www.cvolvepro.com`. Without a backend URL, production browser requests to `/api/*` will not reach FastAPI.
 
 Pricing is selected from the visitor IP country on the backend. India (`IN`) receives INR pricing; all other country codes receive international USD pricing. Make sure the hosting proxy forwards a country header such as `cf-ipcountry`, `x-vercel-ip-country`, `x-country-code`, or `x-forwarded-country`.
