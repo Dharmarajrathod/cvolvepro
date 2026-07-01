@@ -65,39 +65,39 @@ function publicResumeText(text: string) {
   return text.split(/\s*Original Resume Context\b/i)[0].trim();
 }
 
-const RESUME_HEADINGS: Array<[string, string]> = [
-  ["ABOUT ME", "Professional Summary"],
-  ["PROFESSIONAL SUMMARY", "Professional Summary"],
-  ["EDUCATION", "Education"],
-  ["CORE SKILLS", "Core Skills"],
-  ["TECHNICAL SKILLS", "Core Skills"],
-  ["SKILLS", "Core Skills"],
-  ["RELEVANT EXPERIENCE", "Experience"],
-  ["WORK EXPERIENCE", "Experience"],
-  ["EXPERIENCE", "Experience"],
-  ["PROJECTS", "Projects"],
-  ["ACTIVITIES", "Activities"],
-  ["CERTIFICATIONS", "Certifications"],
-  ["ACHIEVEMENTS", "Achievements"],
-  ["LANGUAGES", "Languages"],
-  ["HOBBIES", "Hobbies"],
-  ["ADDITIONAL RESUME DETAILS", "Additional Resume Details"],
+const RESUME_HEADINGS: Array<[string[], string]> = [
+  [["ABOUT ME", "About Me"], "Professional Summary"],
+  [["PROFESSIONAL SUMMARY", "Professional Summary"], "Professional Summary"],
+  [["EDUCATION", "Education"], "Education"],
+  [["CORE SKILLS", "Core Skills"], "Core Skills"],
+  [["TECHNICAL SKILLS", "Technical Skills"], "Core Skills"],
+  [["SKILLS", "Skills"], "Core Skills"],
+  [["RELEVANT EXPERIENCE", "Relevant Experience"], "Experience"],
+  [["WORK EXPERIENCE", "Work Experience"], "Experience"],
+  [["EXPERIENCE", "Experience"], "Experience"],
+  [["PROJECTS", "Projects"], "Projects"],
+  [["ACTIVITIES", "Activities"], "Activities"],
+  [["CERTIFICATIONS", "Certifications"], "Certifications"],
+  [["ACHIEVEMENTS", "Achievements"], "Achievements"],
+  [["LANGUAGES", "Languages"], "Languages"],
+  [["HOBBIES", "Hobbies"], "Hobbies"],
+  [["ADDITIONAL RESUME DETAILS", "Additional Resume Details"], "Additional Resume Details"],
 ];
 
 function structureResumeText(text: string) {
-  let structured = publicResumeText(text)
+  const raw = publicResumeText(text)
     .replace(/\r/g, "\n")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  RESUME_HEADINGS.forEach(([heading], index) => {
-    structured = structured.replace(new RegExp(`\\b${heading}\\b`, "g"), `\n@@SECTION_${index}@@\n`);
-  });
-  RESUME_HEADINGS.forEach(([, label], index) => {
-    structured = structured.replace(new RegExp(`@@SECTION_${index}@@`, "g"), label);
-  });
-  structured = structured
+  const headingMap = new Map<string, string>();
+  RESUME_HEADINGS.forEach(([aliases, label]) => aliases.forEach(alias => headingMap.set(alias, label)));
+  const structured = raw
+    .split(/\n/)
+    .map(line => headingMap.get(line.trim()) || line.trim())
+    .join("\n")
     .replace(/\s+-\s+/g, "\n- ")
+    .replace(/[•]\s*/g, "\n- ")
     .replace(/\s+(Phone:)/i, " | $1")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]+\n/g, "\n")

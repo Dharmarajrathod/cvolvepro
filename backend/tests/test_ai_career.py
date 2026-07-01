@@ -1,6 +1,6 @@
 import pytest
 
-from app.ai_career import fallback_ats_details, heuristic_ats_score, role_label, score_resume, technical_interview_questions
+from app.ai_career import fallback_ats_details, heuristic_ats_score, original_resume_detail_block, role_label, score_resume, technical_interview_questions
 from app.config import Settings
 from app.schemas import JobResult
 
@@ -140,6 +140,33 @@ def test_different_jobs_get_different_interview_questions():
     assert "ui state" in frontend_joined or "rendering" in frontend_joined
     assert "dataset" in data_joined
     assert "sql" in data_joined
+
+
+def test_original_resume_details_preserve_sentence_words():
+    resume = """VIKAS SHARMA
+Creative Student
+About Me
+I like participating in different activities. I am looking for experience and skills.
+Education
+Bachelor's Degree
+Skills
+\u007f MS Word
+\u007f Communication
+Experience
+College Activities
+\u007f Participated in college events.
+Projects
+Social Media Project
+\u007f Made posts online.
+Hobbies
+Reading, Music
+Languages
+English, Hindi"""
+    details = original_resume_detail_block(resume)
+    assert "different activities. I am looking for experience and skills." in details
+    assert "\nEducation\n" in f"\n{details}\n"
+    assert "\n- MS Word" in details
+    assert "\nHobbies\nReading, Music" in f"\n{details}"
 
 
 @pytest.mark.asyncio

@@ -116,6 +116,12 @@ def compact_text(value: str, limit: int = 30000) -> str:
     return re.sub(r"\s+", " ", value).strip()[:limit]
 
 
+def resume_text_with_lines(value: str, limit: int = 30000) -> str:
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    text = "\n".join(line for line in lines if line)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()[:limit]
+
+
 async def extract_resume_text(file: UploadFile) -> str:
     payload = await file.read()
     filename = (file.filename or "").lower()
@@ -126,7 +132,7 @@ async def extract_resume_text(file: UploadFile) -> str:
         text = extract_docx_text(payload)
     else:
         text = payload.decode("utf-8", errors="ignore")
-    text = compact_text(text)
+    text = resume_text_with_lines(text)
     if len(text) < 80:
         raise ValueError("Could not extract enough readable text from the resume.")
     return text
@@ -639,23 +645,28 @@ def polish_resume_bullets(text: str) -> str:
 
 
 ORIGINAL_SECTION_HEADINGS = [
-    "About Me", "Professional Summary", "Summary", "Education", "Core Skills", "Skills", "Technical Skills",
-    "Experience", "Work Experience", "Relevant Experience", "Projects", "Activities", "Certifications",
-    "Achievements", "Languages", "Hobbies",
+    "ABOUT ME", "About Me", "PROFESSIONAL SUMMARY", "Professional Summary", "SUMMARY", "Summary",
+    "EDUCATION", "Education", "CORE SKILLS", "Core Skills", "TECHNICAL SKILLS", "Technical Skills",
+    "SKILLS", "Skills", "RELEVANT EXPERIENCE", "Relevant Experience", "WORK EXPERIENCE", "Work Experience",
+    "EXPERIENCE", "Experience", "PROJECTS", "Projects", "ACTIVITIES", "Activities",
+    "CERTIFICATIONS", "Certifications", "ACHIEVEMENTS", "Achievements", "LANGUAGES", "Languages",
+    "HOBBIES", "Hobbies",
 ]
 
 
 def original_resume_detail_block(resume_text: str, limit: int = 6000) -> str:
-    text = re.sub(r"\s+", " ", resume_text).strip()[:limit]
+    text = resume_text_with_lines(resume_text, limit)
     if not text:
         return ""
-    for heading in sorted(ORIGINAL_SECTION_HEADINGS, key=len, reverse=True):
-        text = re.sub(rf"\b{re.escape(heading)}\b", f"\n{heading}\n", text, flags=re.I)
+    text = re.sub(r"[•]\s*", "\n- ", text)
     text = re.sub(r"\s+-\s+", "\n- ", text)
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     cleaned: list[str] = []
     seen = set()
     for line in lines:
+        heading = next((value for value in ORIGINAL_SECTION_HEADINGS if line == value), None)
+        if heading:
+            line = heading.title() if heading.isupper() else heading
         key = line.lower()
         if key in seen:
             continue
