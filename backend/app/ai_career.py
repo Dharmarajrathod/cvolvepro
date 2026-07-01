@@ -598,6 +598,46 @@ def clean_question_text(value: object) -> str:
     return (match.group(1) if match else raw).replace("\\'", "'").replace('\\"', '"').strip()
 
 
+def answer_backed_resume_bullet(answer_text: str, skills: list[str], fallback_skill: str) -> str:
+    text = re.sub(r"\s+", " ", answer_text).strip().strip(".")
+    text_lower = text.lower()
+    matched_tools = [skill for skill in skills if contains_term(text_lower, skill.lower())][:3]
+    metrics = re.findall(r"\b(?:\d+%|\d+\+?\s*(?:days?|weeks?|months?|years?|yrs?|posts?|leads?|users?|learners?|documents?|meetings?|events?|teams?|projects?|people)|\d+x)\b", text, re.I)
+    verbs = re.findall(r"\b(created|designed|tracked|managed|organized|coordinated|researched|analyzed|prepared|supported|improved|reduced|increased|delivered|maintained|presented|wrote|built|used)\b", text, re.I)
+    tool_text = ", ".join(dict.fromkeys(matched_tools)) or fallback_skill
+    metric_text = metrics[0] if metrics else ""
+    verb = (verbs[0].capitalize() if verbs else "Applied")
+
+    fragments = re.split(r"[.;]|\band\b|\bwhile\b|\busing\b", text)
+    focus = next((fragment.strip(" ,") for fragment in fragments if 18 <= len(fragment.strip()) <= 120), text[:120].strip(" ,"))
+    focus = re.sub(r"\b(i|we|my|our)\b", "", focus, flags=re.I)
+    focus = re.sub(r"\s+", " ", focus).strip(" ,")
+    if not focus:
+        focus = f"{fallback_skill} work"
+    if focus[:1].islower():
+        focus = focus[0].upper() + focus[1:]
+
+    if metric_text:
+        return f"- {verb} {focus} using {tool_text}, contributing to measurable impact such as {metric_text}."
+    return f"- {verb} {focus} using {tool_text} to support role-relevant delivery and team outcomes."
+
+
+def polish_resume_bullets(text: str) -> str:
+    lines = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("-"):
+            bullet = re.sub(r"\b(I|We)\s+(created|designed|tracked|managed|organized|coordinated|researched|analyzed|prepared|supported|improved|reduced|increased|delivered|maintained|presented|wrote|built|used)\b", lambda match: match.group(2).capitalize(), stripped, flags=re.I)
+            bullet = re.sub(r"\b(I|me|my|we|our)\b", "", bullet, flags=re.I)
+            bullet = re.sub(r"\s+", " ", bullet).replace("- ", "- ").strip()
+            if bullet.startswith("- ") and len(bullet) > 3:
+                bullet = f"- {bullet[2:3].upper()}{bullet[3:]}"
+            lines.append(bullet)
+        else:
+            lines.append(line.rstrip())
+    return "\n".join(lines).strip()
+
+
 def fallback_tailored_resume(
     job: JobResult,
     resume_text: str,
@@ -621,10 +661,7 @@ def fallback_tailored_resume(
     matched_lines = matched_resume_lines(resume_text, skills)
     bullets: list[str] = []
     for answer in useful_answers[:5]:
-        action = answer.rstrip(".")
-        if not re.search(r"\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed|implemented|created|managed|used|analyzed)\b", action, re.I):
-            action = f"Applied {skills[0] if skills else 'role-relevant skills'} to {action[0].lower() + action[1:] if len(action) > 1 else action}"
-        bullets.append(f"- {action}.")
+        bullets.append(answer_backed_resume_bullet(answer, skills, skills[0] if skills else "role-relevant skills"))
     for line in matched_lines:
         if len(bullets) >= 7:
             break
@@ -847,6 +884,8 @@ async def generate_tailored_resume(
     system = (
         "You are an expert resume editor for ATS optimization. Rewrite the resume for the target job using only the original resume and the candidate's answers. "
         "Never invent employers, degrees, certifications, metrics, tools, or responsibilities. If evidence is thin, phrase bullets conservatively. "
+        "Treat candidate answers as raw notes only: summarize and transform them into professional third-person resume bullets. "
+        "Do not copy answers verbatim, do not include question wording, and do not use first-person phrasing like I, me, my, or we. "
         "Include ATS keywords naturally, keep the resume plain-text, and make it ready to download. "
         "Use this structure with clear line breaks: candidate name/contact, Professional Summary, Core Skills, Experience, Education, Projects or Activities when relevant. "
         "Put every experience bullet on its own line starting with '-'. Return only JSON."
@@ -867,7 +906,7 @@ async def generate_tailored_resume(
         RESUME_IMPROVE_GENERATE_SCHEMA,
         max_tokens=6144,
     )
-    tailored_text = str(data.get("resume_text") or "").replace("\r\n", "\n").strip()[:30000]
+    tailored_text = polish_resume_bullets(str(data.get("resume_text") or "").replace("\r\n", "\n").strip()[:30000])
     if len(tailored_text) < 80:
         data = fallback
     else:
