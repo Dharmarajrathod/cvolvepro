@@ -582,6 +582,22 @@ def resume_improvement_questions(job: JobResult, resume_text: str, missing_keywo
     return questions[:5]
 
 
+def clean_question_text(value: object) -> str:
+    if isinstance(value, dict):
+        return str(value.get("question") or "").strip()
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = json.loads(raw.replace("'", '"'))
+        if isinstance(parsed, dict):
+            return str(parsed.get("question") or "").strip()
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"['\"]question['\"]\s*:\s*['\"](.+?)['\"]\s*,\s*['\"]purpose['\"]", raw)
+    return (match.group(1) if match else raw).replace("\\'", "'").replace('\\"', '"').strip()
+
+
 def fallback_tailored_resume(
     job: JobResult,
     resume_text: str,
@@ -808,7 +824,11 @@ async def generate_resume_improvement_questions(
         RESUME_IMPROVE_QUESTIONS_SCHEMA,
         max_tokens=2048,
     )
-    questions = [str(question).strip() for question in data.get("questions", []) if str(question).strip()]
+    questions = [clean_question_text(question) for question in data.get("questions", [])]
+    questions = [
+        question for question in questions
+        if question and "'purpose':" not in question.lower() and '"purpose":' not in question.lower()
+    ]
     if len(questions) < 4:
         questions = fallback
     data["questions"] = questions[:5]

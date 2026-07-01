@@ -760,32 +760,48 @@
 
 .resume-question-list {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   margin-top: 16px;
 }
 
-.resume-question-list label {
+.resume-question-item {
   display: grid;
-  gap: 8px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px 12px;
+  border: 1px solid #e2e8df;
+  border-radius: 10px;
+  background: #FFFFFF;
+  padding: 14px;
 }
 
-.resume-question-list span {
-  color: #334155;
-  font-weight: 700;
-  font-size: 13px;
-  line-height: 1.45;
+.question-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0F172A;
+  color: #FFFFFF;
+  display: grid;
+  place-items: center;
+  font: 800 12px "DM Sans", sans-serif;
+}
+
+.question-text {
+  color: #243044;
+  font: 700 14px/1.45 "DM Sans", sans-serif;
+  padding-top: 3px;
 }
 
 .resume-question-list textarea {
+  grid-column: 2;
   width: 100%;
-  min-height: 98px;
+  min-height: 86px;
   resize: vertical;
   border: 1px solid #D8DDD4;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 12px;
-  font: 500 14px "DM Sans", sans-serif;
+  font: 500 13px/1.5 "DM Sans", sans-serif;
   color: #0F172A;
-  background: #FFFFFF;
+  background: #FAFBF8;
 }
 
 .resume-question-list textarea:focus {
@@ -2592,6 +2608,15 @@ footer .logo-brand img {
   .compact-action,
   .generated-resume-card .primary-action {
     width: 100%;
+  }
+
+  .resume-question-item {
+    grid-template-columns: 26px minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .resume-question-list textarea {
+    grid-column: 1 / -1;
   }
 
   .auth-copy h1 {

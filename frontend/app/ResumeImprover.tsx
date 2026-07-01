@@ -24,6 +24,26 @@ function fallbackQuestions(result: AtsResult) {
   ];
 }
 
+function cleanQuestion(value: unknown) {
+  if (value && typeof value === "object" && "question" in value) {
+    return String((value as { question?: unknown }).question || "").trim();
+  }
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw.replace(/'/g, "\""));
+    if (parsed && typeof parsed === "object" && "question" in parsed) return String(parsed.question || "").trim();
+  } catch {}
+  const match = raw.match(/["']question["']\s*:\s*["'](.+?)["']\s*,\s*["']purpose["']/);
+  return (match?.[1] || raw).replace(/\\(["'])/g, "$1").trim();
+}
+
+function normalizeQuestions(values: unknown, result: AtsResult) {
+  const questions = Array.isArray(values) ? values.map(cleanQuestion).filter(Boolean) : [];
+  const cleanQuestions = questions.filter(question => !question.toLowerCase().includes("'purpose':") && !question.toLowerCase().includes("\"purpose\":"));
+  return (cleanQuestions.length >= 4 ? cleanQuestions : fallbackQuestions(result)).slice(0, 5);
+}
+
 function downloadText(filename: string, text: string) {
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -62,7 +82,7 @@ export default function ResumeImprover({ result, onResumeReady }: Props) {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "Improvement questions could not be generated.");
-      const nextQuestions = Array.isArray(body.questions) && body.questions.length >= 4 ? body.questions.slice(0, 5) : fallbackQuestions(result);
+      const nextQuestions = normalizeQuestions(body.questions, result);
       setQuestions(nextQuestions);
       setAnswers(Object.fromEntries(nextQuestions.map((question: string) => [question, ""])));
     } catch (err) {
@@ -126,7 +146,7 @@ export default function ResumeImprover({ result, onResumeReady }: Props) {
       {!questions.length && <button className="secondary-action compact-action" onClick={startImprovement} disabled={loadingQuestions}>{loadingQuestions ? <Loader2 className="spin" size={16}/> : <Sparkles size={16}/>}Improve my resume</button>}
     </div>
     {questions.length > 0 && !generated && <div className="resume-question-list">
-      {questions.map((question, index) => <label key={question}><span>{index + 1}. {question}</span><textarea value={answers[question] || ""} onChange={e=>setAnswers(current => ({ ...current, [question]: e.target.value }))} placeholder="Use only truthful experience, tools, metrics, or coursework."/></label>)}
+      {questions.map((question, index) => <label key={question} className="resume-question-item"><span className="question-number">{index + 1}</span><span className="question-text">{question}</span><textarea value={answers[question] || ""} onChange={e=>setAnswers(current => ({ ...current, [question]: e.target.value }))} placeholder="Add truthful experience, tools, metrics, or coursework."/></label>)}
       <button className="primary-action" onClick={generateResume} disabled={generating}>{generating ? <Loader2 className="spin" size={18}/> : <Sparkles size={18}/>}Generate improved resume</button>
     </div>}
     {generated && <div className="generated-resume-card">
