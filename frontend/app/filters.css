@@ -846,6 +846,32 @@
   margin-top: 7px;
 }
 
+.resume-export-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(74px, 1fr));
+  gap: 8px;
+}
+
+.resume-export-actions button {
+  min-height: 38px;
+  border: 1px solid #D8DDD4;
+  border-radius: 8px;
+  background: #0F172A;
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: 800 11px "DM Sans", sans-serif;
+  letter-spacing: .7px;
+  cursor: pointer;
+}
+
+.resume-export-actions button:hover {
+  background: #FF7A1A;
+  color: #0F172A;
+}
+
 .responsive-table {
   overflow-x: auto;
 }
@@ -2606,7 +2632,8 @@ footer .logo-brand img {
   }
 
   .compact-action,
-  .generated-resume-card .primary-action {
+  .generated-resume-card .primary-action,
+  .resume-export-actions {
     width: 100%;
   }
 
