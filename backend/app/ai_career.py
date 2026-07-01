@@ -847,7 +847,9 @@ async def generate_tailored_resume(
     system = (
         "You are an expert resume editor for ATS optimization. Rewrite the resume for the target job using only the original resume and the candidate's answers. "
         "Never invent employers, degrees, certifications, metrics, tools, or responsibilities. If evidence is thin, phrase bullets conservatively. "
-        "Include ATS keywords naturally, keep the resume plain-text, and make it ready to download. Return only JSON."
+        "Include ATS keywords naturally, keep the resume plain-text, and make it ready to download. "
+        "Use this structure with clear line breaks: candidate name/contact, Professional Summary, Core Skills, Experience, Education, Projects or Activities when relevant. "
+        "Put every experience bullet on its own line starting with '-'. Return only JSON."
     )
     fallback = fallback_tailored_resume(job, resume_text, answers, missing_keywords, recommendations)
     data = await nvidia_json(
@@ -865,7 +867,7 @@ async def generate_tailored_resume(
         RESUME_IMPROVE_GENERATE_SCHEMA,
         max_tokens=6144,
     )
-    tailored_text = compact_text(str(data.get("resume_text") or ""), 30000)
+    tailored_text = str(data.get("resume_text") or "").replace("\r\n", "\n").strip()[:30000]
     if len(tailored_text) < 80:
         data = fallback
     else:

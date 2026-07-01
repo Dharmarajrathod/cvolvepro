@@ -62,19 +62,72 @@ function escapeHtml(value: string) {
 }
 
 function publicResumeText(text: string) {
-  return text.split(/\nOriginal Resume Context\b/i)[0].trim();
+  return text.split(/\s*Original Resume Context\b/i)[0].trim();
+}
+
+const RESUME_HEADINGS: Array<[string, string]> = [
+  ["ABOUT ME", "Professional Summary"],
+  ["PROFESSIONAL SUMMARY", "Professional Summary"],
+  ["EDUCATION", "Education"],
+  ["CORE SKILLS", "Core Skills"],
+  ["TECHNICAL SKILLS", "Core Skills"],
+  ["SKILLS", "Core Skills"],
+  ["RELEVANT EXPERIENCE", "Experience"],
+  ["WORK EXPERIENCE", "Experience"],
+  ["EXPERIENCE", "Experience"],
+  ["PROJECTS", "Projects"],
+  ["ACTIVITIES", "Activities"],
+  ["CERTIFICATIONS", "Certifications"],
+  ["ACHIEVEMENTS", "Achievements"],
+  ["LANGUAGES", "Languages"],
+  ["HOBBIES", "Hobbies"],
+];
+
+function structureResumeText(text: string) {
+  let structured = publicResumeText(text)
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  RESUME_HEADINGS.forEach(([heading], index) => {
+    structured = structured.replace(new RegExp(`\\b${heading}\\b`, "g"), `\n@@SECTION_${index}@@\n`);
+  });
+  RESUME_HEADINGS.forEach(([, label], index) => {
+    structured = structured.replace(new RegExp(`@@SECTION_${index}@@`, "g"), label);
+  });
+  structured = structured
+    .replace(/\s+-\s+/g, "\n- ")
+    .replace(/\s+(Phone:)/i, " | $1")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+  return structured;
 }
 
 function normalizeResumeLines(text: string) {
-  return publicResumeText(text)
+  const seenHeadings = new Set<string>();
+  return structureResumeText(text)
     .split(/\r?\n/)
     .map(line => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(line => {
+      if (!isSectionHeading(line, 1)) return true;
+      const key = line.toLowerCase();
+      if (seenHeadings.has(key)) return false;
+      seenHeadings.add(key);
+      return true;
+    });
 }
 
 function isSectionHeading(line: string, index: number) {
   if (index === 0) return true;
-  return /^(professional summary|summary|core skills|skills|technical skills|relevant experience|experience|work experience|projects|education|certifications|achievements)$/i.test(line);
+  return /^(professional summary|summary|core skills|skills|technical skills|relevant experience|experience|work experience|projects|activities|education|certifications|achievements|languages|hobbies)$/i.test(line);
+}
+
+function splitHeader(line: string) {
+  const match = line.match(/^(.*?)\s+(Email:.*)$/i);
+  if (!match) return { name: line.replace(/\s+Resume$/i, ""), contact: "" };
+  return { name: match[1].replace(/\s+Resume$/i, ""), contact: match[2] };
 }
 
 function resumeBaseName(title: string) {
@@ -83,7 +136,10 @@ function resumeBaseName(title: string) {
 
 function formatResumeMarkdown(text: string) {
   return normalizeResumeLines(text).map((line, index) => {
-    if (index === 0) return `# ${line.replace(/\s+Resume$/i, "")}`;
+    if (index === 0) {
+      const header = splitHeader(line);
+      return header.contact ? `# ${header.name}\n${header.contact}` : `# ${header.name}`;
+    }
     if (isSectionHeading(line, index)) return `\n## ${line}`;
     if (line.startsWith("-")) return line;
     return line;
@@ -92,9 +148,13 @@ function formatResumeMarkdown(text: string) {
 
 function formatResumePlainText(text: string) {
   return normalizeResumeLines(text).map((line, index) => {
+    if (index === 0) {
+      const header = splitHeader(line);
+      return header.contact ? `${header.name.toUpperCase()}\n${header.contact}` : header.name.toUpperCase();
+    }
     if (isSectionHeading(line, index)) {
-      const heading = index === 0 ? line.replace(/\s+Resume$/i, "") : line.toUpperCase();
-      return `${index === 0 ? "" : "\n"}${heading}\n${"=".repeat(Math.min(heading.length, 42))}`;
+      const heading = line.toUpperCase();
+      return `\n${heading}\n${"=".repeat(Math.min(heading.length, 42))}`;
     }
     return line;
   }).join("\n");
@@ -103,16 +163,20 @@ function formatResumePlainText(text: string) {
 function formatResumeHtml(text: string) {
   const lines = normalizeResumeLines(text);
   const body = lines.map((line, index) => {
-    if (index === 0) return `<h1>${escapeHtml(line.replace(/\s+Resume$/i, ""))}</h1>`;
+    if (index === 0) {
+      const header = splitHeader(line);
+      return `<h1>${escapeHtml(header.name)}</h1>${header.contact ? `<div class="contact">${escapeHtml(header.contact)}</div>` : ""}`;
+    }
     if (isSectionHeading(line, index)) return `<h2>${escapeHtml(line)}</h2>`;
     if (line.startsWith("-")) return `<p class="bullet">${escapeHtml(line.replace(/^-\s*/, ""))}</p>`;
     return `<p>${escapeHtml(line)}</p>`;
   }).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><style>
-    body{font-family:Arial,sans-serif;color:#111827;line-height:1.45;margin:48px;max-width:760px}
-    h1{font-size:24px;margin:0 0 18px;text-align:center;letter-spacing:.4px}
-    h2{font-size:13px;margin:22px 0 8px;border-bottom:1px solid #CBD5E1;padding-bottom:4px;text-transform:uppercase;letter-spacing:.8px}
-    p{font-size:11.5px;margin:5px 0}.bullet{padding-left:16px;text-indent:-10px}
+    body{font-family:Arial,sans-serif;color:#111827;line-height:1.42;margin:44px auto;max-width:760px}
+    h1{font-size:24px;margin:0 0 4px;text-align:center;letter-spacing:.4px}
+    .contact{text-align:center;font-size:10.5px;margin:0 0 16px;color:#334155}
+    h2{font-size:12.5px;margin:18px 0 7px;border-bottom:1px solid #CBD5E1;padding-bottom:4px;text-transform:uppercase;letter-spacing:.8px}
+    p{font-size:10.8px;margin:4px 0}.bullet{padding-left:16px;text-indent:-10px}
     .bullet:before{content:"• ";font-weight:bold}
   </style></head><body>${body}</body></html>`;
 }
