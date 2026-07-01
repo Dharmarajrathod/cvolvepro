@@ -81,6 +81,7 @@ const RESUME_HEADINGS: Array<[string, string]> = [
   ["ACHIEVEMENTS", "Achievements"],
   ["LANGUAGES", "Languages"],
   ["HOBBIES", "Hobbies"],
+  ["ADDITIONAL RESUME DETAILS", "Additional Resume Details"],
 ];
 
 function structureResumeText(text: string) {
@@ -121,7 +122,7 @@ function normalizeResumeLines(text: string) {
 
 function isSectionHeading(line: string, index: number) {
   if (index === 0) return true;
-  return /^(professional summary|summary|core skills|skills|technical skills|relevant experience|experience|work experience|projects|activities|education|certifications|achievements|languages|hobbies)$/i.test(line);
+  return /^(professional summary|summary|core skills|skills|technical skills|relevant experience|experience|work experience|projects|activities|education|certifications|achievements|languages|hobbies|additional resume details)$/i.test(line);
 }
 
 function splitHeader(line: string) {

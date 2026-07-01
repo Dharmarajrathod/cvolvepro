@@ -638,6 +638,48 @@ def polish_resume_bullets(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+ORIGINAL_SECTION_HEADINGS = [
+    "About Me", "Professional Summary", "Summary", "Education", "Core Skills", "Skills", "Technical Skills",
+    "Experience", "Work Experience", "Relevant Experience", "Projects", "Activities", "Certifications",
+    "Achievements", "Languages", "Hobbies",
+]
+
+
+def original_resume_detail_block(resume_text: str, limit: int = 6000) -> str:
+    text = re.sub(r"\s+", " ", resume_text).strip()[:limit]
+    if not text:
+        return ""
+    for heading in sorted(ORIGINAL_SECTION_HEADINGS, key=len, reverse=True):
+        text = re.sub(rf"\b{re.escape(heading)}\b", f"\n{heading}\n", text, flags=re.I)
+    text = re.sub(r"\s+-\s+", "\n- ", text)
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    cleaned: list[str] = []
+    seen = set()
+    for line in lines:
+        key = line.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
+
+
+def preserve_original_resume_details(generated_text: str, original_resume_text: str) -> str:
+    generated_lower = generated_text.lower()
+    original_lower = original_resume_text.lower()
+    important_signals = ("education", "project", "hobbies", "languages", "certification", "achievement")
+    missing_signals = [signal for signal in important_signals if signal in original_lower and signal not in generated_lower]
+    original_words = set(re.findall(r"[a-z][a-z0-9+#.]{3,}", original_lower))
+    generated_words = set(re.findall(r"[a-z][a-z0-9+#.]{3,}", generated_lower))
+    retained_ratio = len(original_words & generated_words) / max(1, len(original_words))
+    if not missing_signals and retained_ratio >= 0.45:
+        return generated_text
+    details = original_resume_detail_block(original_resume_text)
+    if not details:
+        return generated_text
+    return f"{generated_text.rstrip()}\n\nAdditional Resume Details\n{details}"
+
+
 def fallback_tailored_resume(
     job: JobResult,
     resume_text: str,
@@ -683,8 +725,8 @@ def fallback_tailored_resume(
         "Relevant Experience",
         *bullets[:7],
         "",
-        "Original Resume Context",
-        compact_text(resume_text, 1800),
+        "Additional Resume Details",
+        original_resume_detail_block(resume_text),
     ])
     score = max(70, deterministic_ats_score(job, tailored))
     return {
@@ -884,6 +926,8 @@ async def generate_tailored_resume(
     system = (
         "You are an expert resume editor for ATS optimization. Rewrite the resume for the target job using only the original resume and the candidate's answers. "
         "Never invent employers, degrees, certifications, metrics, tools, or responsibilities. If evidence is thin, phrase bullets conservatively. "
+        "Preserve the candidate's existing truthful resume sections and content, including experience, projects, education, certifications, languages, hobbies, and activities when present. "
+        "Do not delete prior experience or projects just because they are less relevant; keep them in a concise section if they are truthful. "
         "Treat candidate answers as raw notes only: summarize and transform them into professional third-person resume bullets. "
         "Do not copy answers verbatim, do not include question wording, and do not use first-person phrasing like I, me, my, or we. "
         "Include ATS keywords naturally, keep the resume plain-text, and make it ready to download. "
@@ -907,6 +951,7 @@ async def generate_tailored_resume(
         max_tokens=6144,
     )
     tailored_text = polish_resume_bullets(str(data.get("resume_text") or "").replace("\r\n", "\n").strip()[:30000])
+    tailored_text = preserve_original_resume_details(tailored_text, resume_text)[:30000]
     if len(tailored_text) < 80:
         data = fallback
     else:
