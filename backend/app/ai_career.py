@@ -16,6 +16,9 @@ from .schemas import (
     InterviewFeedbackResponse,
     InterviewStartResponse,
     JobResult,
+    ResumeImproveAnswer,
+    ResumeImproveGenerateResponse,
+    ResumeImproveQuestionResponse,
 )
 from .search import NvidiaAPIError
 
@@ -85,6 +88,27 @@ FEEDBACK_SCHEMA = {
         },
     },
     "required": ["overall_score", "hiring_signal", "summary", "strengths", "improvements", "better_answer_guidance", "question_feedback"],
+}
+
+RESUME_IMPROVE_QUESTIONS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "questions": {"type": "array", "minItems": 4, "maxItems": 5, "items": {"type": "string"}}
+    },
+    "required": ["questions"],
+}
+
+RESUME_IMPROVE_GENERATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "resume_text": {"type": "string"},
+        "expected_ats_score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "summary": {"type": "string"},
+        "changes": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["resume_text", "expected_ats_score", "summary", "changes"],
 }
 
 
@@ -538,6 +562,90 @@ def technical_interview_questions(job: JobResult, resume_text: str, ats_score: i
     return questions[:10]
 
 
+def resume_improvement_questions(job: JobResult, resume_text: str, missing_keywords: list[str], recommendations: list[str]) -> list[str]:
+    target_role = role_label(job)
+    cleaned_summary = clean_job_text(job.summary)
+    terms = list(dict.fromkeys([*missing_keywords, *inferred_job_skills(job, cleaned_summary), *keyword_list(cleaned_summary)]))
+    primary = terms[0] if terms else "the most important job requirement"
+    secondary = terms[1] if len(terms) > 1 else "the required tools"
+    tertiary = terms[2] if len(terms) > 2 else "the role responsibilities"
+    resume_lines = matched_resume_lines(resume_text, terms)
+    project_line = resume_lines[0] if resume_lines else "your strongest project or work experience"
+    guidance = recommendations[0] if recommendations else f"connect your resume more directly to {target_role}"
+    questions = [
+        f"Have you used {primary} in a real project, internship, job, or coursework? Describe what you did, the tools, and the outcome.",
+        f"The job also mentions {secondary}. What related experience do you have, and what measurable result can we safely add to your resume?",
+        f"Which resume line or project is closest to this role: \"{project_line}\"? Share what extra details, scale, metrics, or responsibilities are missing.",
+        f"Have you handled work similar to {tertiary} for users, clients, teams, or a production system? Explain your role and impact.",
+        f"The ATS recommendation says to {guidance.rstrip('.')}. Which truthful skills, keywords, certifications, or achievements should be added?",
+    ]
+    return questions[:5]
+
+
+def fallback_tailored_resume(
+    job: JobResult,
+    resume_text: str,
+    answers: list[ResumeImproveAnswer],
+    missing_keywords: list[str],
+    recommendations: list[str],
+) -> dict:
+    target_role = role_label(job)
+    cleaned_summary = clean_job_text(job.summary)
+    skills = list(dict.fromkeys([*job.skills, *inferred_job_skills(job, cleaned_summary), *missing_keywords]))[:12]
+    useful_answers = [
+        re.sub(r"\s+", " ", answer.answer).strip()
+        for answer in answers
+        if len(answer.answer.strip()) >= 8 and answer.answer.strip().lower() not in {"no", "n/a", "none", "not applicable"}
+    ]
+    original_lines = [
+        re.sub(r"\s+", " ", line).strip(" -•\t")
+        for line in re.split(r"[\r\n]+|(?<=\.)\s+", resume_text)
+        if 12 <= len(re.sub(r"\s+", " ", line).strip(" -•\t")) <= 220
+    ]
+    matched_lines = matched_resume_lines(resume_text, skills)
+    bullets: list[str] = []
+    for answer in useful_answers[:5]:
+        action = answer.rstrip(".")
+        if not re.search(r"\b(built|led|owned|delivered|improved|reduced|increased|designed|deployed|implemented|created|managed|used|analyzed)\b", action, re.I):
+            action = f"Applied {skills[0] if skills else 'role-relevant skills'} to {action[0].lower() + action[1:] if len(action) > 1 else action}"
+        bullets.append(f"- {action}.")
+    for line in matched_lines:
+        if len(bullets) >= 7:
+            break
+        bullets.append(f"- {line.rstrip('.')}.")
+    while len(bullets) < 5 and original_lines:
+        line = original_lines[len(bullets) % len(original_lines)].rstrip(".")
+        bullets.append(f"- {line}.")
+    skills_line = ", ".join(skills[:10]) or "Role-specific tools, measurable impact, cross-functional delivery"
+    recommendation_line = " ".join(recommendations[:2]) if recommendations else f"Tailored toward {target_role} responsibilities."
+    tailored = "\n".join([
+        f"{target_role} Resume",
+        "",
+        "Professional Summary",
+        f"{target_role} candidate with experience aligned to {job.company or 'the target company'} requirements, including {skills_line}. {recommendation_line}",
+        "",
+        "Core Skills",
+        skills_line,
+        "",
+        "Relevant Experience",
+        *bullets[:7],
+        "",
+        "Original Resume Context",
+        compact_text(resume_text, 1800),
+    ])
+    score = max(70, deterministic_ats_score(job, tailored))
+    return {
+        "resume_text": tailored,
+        "expected_ats_score": score,
+        "summary": f"Generated a truthful tailored resume draft for {target_role} using your original resume and answers.",
+        "changes": [
+            "Moved the target role and matching skills into the summary.",
+            "Added answer-backed bullets for job requirements that were missing from the ATS scan.",
+            "Preserved original resume context so the draft stays grounded in your existing experience.",
+        ],
+    }
+
+
 def fallback_interview_feedback(job: JobResult, answers: list[InterviewAnswer], score: int) -> dict:
     answer_text = " ".join(answer.answer for answer in answers)
     answer_lower = answer_text.lower()
@@ -671,6 +779,84 @@ async def score_resume(settings: Settings, job: JobResult, resume_text: str) -> 
             data[field] = fallback[field]
     data["resume_updates"] = normalize_resume_updates(data.get("resume_updates"), fallback["resume_updates"])
     return AtsScoreResponse(job=job, resume_text=resume_text, **data)
+
+
+async def generate_resume_improvement_questions(
+    settings: Settings,
+    job: JobResult,
+    resume_text: str,
+    ats_score: int,
+    missing_keywords: list[str],
+    recommendations: list[str],
+) -> ResumeImproveQuestionResponse:
+    system = (
+        "You are a resume strategist. Create 4-5 short, specific questions that collect truthful evidence before rewriting a resume. "
+        "Ask whether the candidate has actually done job-relevant work, what tools they used, what scale or metric applies, and which resume project can be strengthened. "
+        "Do not ask generic questions. Return only JSON."
+    )
+    fallback = resume_improvement_questions(job, resume_text, missing_keywords, recommendations)
+    data = await nvidia_json(
+        settings,
+        system,
+        {
+            "job": job_context(job),
+            "resume_text": resume_text,
+            "ats_score": ats_score,
+            "missing_keywords": missing_keywords,
+            "recommendations": recommendations,
+        },
+        RESUME_IMPROVE_QUESTIONS_SCHEMA,
+        max_tokens=2048,
+    )
+    questions = [str(question).strip() for question in data.get("questions", []) if str(question).strip()]
+    if len(questions) < 4:
+        questions = fallback
+    data["questions"] = questions[:5]
+    return ResumeImproveQuestionResponse(**data)
+
+
+async def generate_tailored_resume(
+    settings: Settings,
+    job: JobResult,
+    resume_text: str,
+    ats_score: int,
+    missing_keywords: list[str],
+    recommendations: list[str],
+    answers: list[ResumeImproveAnswer],
+) -> ResumeImproveGenerateResponse:
+    system = (
+        "You are an expert resume editor for ATS optimization. Rewrite the resume for the target job using only the original resume and the candidate's answers. "
+        "Never invent employers, degrees, certifications, metrics, tools, or responsibilities. If evidence is thin, phrase bullets conservatively. "
+        "Include ATS keywords naturally, keep the resume plain-text, and make it ready to download. Return only JSON."
+    )
+    fallback = fallback_tailored_resume(job, resume_text, answers, missing_keywords, recommendations)
+    data = await nvidia_json(
+        settings,
+        system,
+        {
+            "job": job_context(job),
+            "original_resume_text": resume_text,
+            "ats_score": ats_score,
+            "missing_keywords": missing_keywords,
+            "recommendations": recommendations,
+            "answers": [answer.model_dump() for answer in answers],
+            "target": "Produce a truthful ATS-optimized resume likely to score at least 70 when evidence supports it.",
+        },
+        RESUME_IMPROVE_GENERATE_SCHEMA,
+        max_tokens=6144,
+    )
+    tailored_text = compact_text(str(data.get("resume_text") or ""), 30000)
+    if len(tailored_text) < 80:
+        data = fallback
+    else:
+        data["resume_text"] = tailored_text
+        data["expected_ats_score"] = max(70, deterministic_ats_score(job, tailored_text))
+        if not data.get("summary"):
+            data["summary"] = fallback["summary"]
+        changes = data.get("changes")
+        if not isinstance(changes, list) or not [change for change in changes if change]:
+            data["changes"] = fallback["changes"]
+    return ResumeImproveGenerateResponse(**data)
 
 
 async def generate_questions(settings: Settings, job: JobResult, resume_text: str, ats_score: int, ats_summary: str | None) -> InterviewStartResponse:

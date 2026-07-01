@@ -149,6 +149,34 @@ class AtsScoreResponse(BaseModel):
     resume_text: str
     job: JobResult
 
+class ResumeImproveQuestionRequest(BaseModel):
+    job: JobResult
+    resume_text: str = Field(min_length=80, max_length=30000)
+    ats_score: int = Field(ge=0, le=100)
+    missing_keywords: list[str] = Field(default_factory=list, max_length=12)
+    recommendations: list[str] = Field(default_factory=list, max_length=8)
+
+class ResumeImproveQuestionResponse(BaseModel):
+    questions: list[str] = Field(min_length=4, max_length=5)
+
+class ResumeImproveAnswer(BaseModel):
+    question: str = Field(min_length=3, max_length=1200)
+    answer: str = Field(min_length=1, max_length=3000)
+
+class ResumeImproveGenerateRequest(BaseModel):
+    job: JobResult
+    resume_text: str = Field(min_length=80, max_length=30000)
+    ats_score: int = Field(ge=0, le=100)
+    missing_keywords: list[str] = Field(default_factory=list, max_length=12)
+    recommendations: list[str] = Field(default_factory=list, max_length=8)
+    answers: list[ResumeImproveAnswer] = Field(min_length=4, max_length=5)
+
+class ResumeImproveGenerateResponse(BaseModel):
+    resume_text: str = Field(min_length=80, max_length=30000)
+    expected_ats_score: int = Field(ge=0, le=100)
+    summary: str
+    changes: list[str] = Field(default_factory=list)
+
 class InterviewStartRequest(BaseModel):
     job: JobResult
     resume_text: str = Field(min_length=80, max_length=30000)

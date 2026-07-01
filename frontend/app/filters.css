@@ -720,6 +720,116 @@
   color: #64748B;
 }
 
+.resume-improver {
+  margin-top: 20px;
+  border: 1px solid #d7dde0;
+  border-radius: 12px;
+  background: #fffdfa;
+  padding: 18px;
+}
+
+.resume-improver-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.resume-improver h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  font: 700 13px "DM Sans", sans-serif;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: #0F172A;
+}
+
+.resume-improver p {
+  margin: 0;
+  color: #5e685e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.compact-action {
+  margin-top: 0;
+  min-width: 178px;
+}
+
+.resume-question-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.resume-question-list label {
+  display: grid;
+  gap: 8px;
+}
+
+.resume-question-list span {
+  color: #334155;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.resume-question-list textarea {
+  width: 100%;
+  min-height: 98px;
+  resize: vertical;
+  border: 1px solid #D8DDD4;
+  border-radius: 10px;
+  padding: 12px;
+  font: 500 14px "DM Sans", sans-serif;
+  color: #0F172A;
+  background: #FFFFFF;
+}
+
+.resume-question-list textarea:focus {
+  outline: 2px solid rgba(255, 122, 26, .18);
+  border-color: #FF7A1A;
+}
+
+.generated-resume-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.generated-score {
+  width: 92px;
+  min-height: 78px;
+  border-radius: 10px;
+  background: #ECFDF5;
+  color: #065F46;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  text-align: center;
+}
+
+.generated-score strong {
+  font: 800 24px Manrope;
+}
+
+.generated-score span {
+  font: 800 10px "DM Sans", sans-serif;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+
+.generated-resume-card p + p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 7px;
+}
+
 .responsive-table {
   overflow-x: auto;
 }
@@ -2471,6 +2581,17 @@ footer .logo-brand img {
 
   .auth-shell {
     grid-template-columns: 1fr;
+  }
+
+  .resume-improver-head,
+  .generated-resume-card {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .compact-action,
+  .generated-resume-card .primary-action {
+    width: 100%;
   }
 
   .auth-copy h1 {

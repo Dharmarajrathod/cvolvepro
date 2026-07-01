@@ -9,11 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import httpx
 from pydantic import ValidationError
-from .ai_career import extract_resume_text, generate_questions, grade_interview, score_resume
+from .ai_career import extract_resume_text, generate_questions, generate_resume_improvement_questions, generate_tailored_resume, grade_interview, score_resume
 from .auth import authenticate_user, consume_verification_code, create_user, ensure_unlimited_account, get_public_user, init_auth_database, require_user_credits, reset_user_password, send_plan_purchase_email, send_verification_code, spend_user_credits, update_user_plan
 from .config import get_settings
 from .payments import FREE_PLAN_CREDITS, STRIPE_PLANS, create_checkout_session, get_regional_plan, pricing_region_for_request, public_pricing, retrieve_checkout_session
-from .schemas import AuthUserResponse, CheckoutSessionResponse, ConfirmCheckoutSessionRequest, CreateCheckoutSessionRequest, InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse, LoginRequest, RegisterRequest, ResetPasswordRequest, SelectFreePlanRequest, SendVerificationCodeRequest
+from .schemas import AuthUserResponse, CheckoutSessionResponse, ConfirmCheckoutSessionRequest, CreateCheckoutSessionRequest, InterviewFeedbackRequest, InterviewStartRequest, JobResult, JobSearchRequest, JobSearchResponse, LoginRequest, RegisterRequest, ResetPasswordRequest, ResumeImproveGenerateRequest, ResumeImproveQuestionRequest, SelectFreePlanRequest, SendVerificationCodeRequest
 from .search import NvidiaAPIError, search_jobs
 
 settings = get_settings()
@@ -251,6 +251,49 @@ async def ats_score(
         raise HTTPException(504, "NVIDIA NIM took too long to respond. Please retry.")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    except httpx.HTTPError:
+        raise HTTPException(502, "Could not connect to NVIDIA NIM.")
+
+@app.post("/api/resume-improve/questions")
+async def resume_improve_questions(body: ResumeImproveQuestionRequest):
+    try:
+        return await generate_resume_improvement_questions(
+            settings,
+            body.job,
+            body.resume_text,
+            body.ats_score,
+            body.missing_keywords,
+            body.recommendations,
+        )
+    except NvidiaAPIError as exc:
+        if exc.status_code in {401, 403}: raise HTTPException(503, "The NVIDIA API key is missing or invalid.")
+        if exc.status_code == 429: raise HTTPException(429, "NVIDIA NIM is busy. Please try again shortly.")
+        raise HTTPException(502, "NVIDIA NIM returned an error.")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "NVIDIA NIM took too long to respond. Please retry.")
+    except httpx.HTTPError:
+        raise HTTPException(502, "Could not connect to NVIDIA NIM.")
+
+@app.post("/api/resume-improve/generate")
+async def resume_improve_generate(body: ResumeImproveGenerateRequest):
+    try:
+        return await generate_tailored_resume(
+            settings,
+            body.job,
+            body.resume_text,
+            body.ats_score,
+            body.missing_keywords,
+            body.recommendations,
+            body.answers,
+        )
+    except ValidationError:
+        raise HTTPException(502, "The improved resume response could not be validated.")
+    except NvidiaAPIError as exc:
+        if exc.status_code in {401, 403}: raise HTTPException(503, "The NVIDIA API key is missing or invalid.")
+        if exc.status_code == 429: raise HTTPException(429, "NVIDIA NIM is busy. Please try again shortly.")
+        raise HTTPException(502, "NVIDIA NIM returned an error.")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "NVIDIA NIM took too long to respond. Please retry.")
     except httpx.HTTPError:
         raise HTTPException(502, "Could not connect to NVIDIA NIM.")
 

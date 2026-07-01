@@ -35,6 +35,18 @@ export type ResumeUpdate = {
   reason: string;
 };
 
+export type ResumeImproveAnswer = {
+  question: string;
+  answer: string;
+};
+
+export type ResumeImproveResult = {
+  resume_text: string;
+  expected_ats_score: number;
+  summary: string;
+  changes: string[];
+};
+
 export type InterviewFeedback = {
   overall_score: number;
   hiring_signal: string;
